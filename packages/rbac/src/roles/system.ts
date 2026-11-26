@@ -84,4 +84,12 @@ export const SystemRoles = [
       InductionPermissions.ACCOUNT_UPDATE_ANY,
     ],
   },
+  {
+    name: "Member",
+    description:
+      "Standard inducted member with access to profile, own tasks, own activity log, and assigned team resources.",
+    isSystem: true,
+    isSuperAdmin: false,
+    permissions: [],
+  },
 ] as const satisfies readonly RoleDefinition[];

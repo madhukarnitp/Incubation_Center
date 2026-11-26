@@ -13,6 +13,7 @@ export function AuthProvider({ children }) {
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isTeamAdmin, setIsTeamAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -25,22 +26,33 @@ export function AuthProvider({ children }) {
         const primaryRole = res.isSuperAdmin
           ? 'Super Admin'
           : res.roles?.[0]?.name || res.user.role || 'Member';
+        const userTeams = res.teams || res.user.teams || [];
+        const teamAdminFlag =
+          Boolean(res.isTeamAdmin) ||
+          userTeams.some((t) =>
+            ['lead', 'co-lead', 'club secretary', 'coordinator'].includes(
+              (t.position || '').toLowerCase()
+            )
+          );
         const normalizedUser = {
           ...res.user,
           role: primaryRole,
           roles: res.roles || [],
-          teams: res.teams || res.user.teams || [],
+          teams: userTeams,
+          isTeamAdmin: teamAdminFlag,
         };
         setCurrentUser(normalizedUser);
         setRoles(res.roles || []);
         setPermissions(res.permissions || []);
         setIsSuperAdmin(Boolean(res.isSuperAdmin));
+        setIsTeamAdmin(teamAdminFlag);
         return normalizedUser;
       }
       setCurrentUser(null);
       setRoles([]);
       setPermissions([]);
       setIsSuperAdmin(false);
+      setIsTeamAdmin(false);
       return null;
     } catch {
       // 401 Unauthorized or no active session
@@ -48,6 +60,7 @@ export function AuthProvider({ children }) {
       setRoles([]);
       setPermissions([]);
       setIsSuperAdmin(false);
+      setIsTeamAdmin(false);
       return null;
     } finally {
       setIsLoading(false);
@@ -108,6 +121,7 @@ export function AuthProvider({ children }) {
       setRoles([]);
       setPermissions([]);
       setIsSuperAdmin(false);
+      setIsTeamAdmin(false);
       router.push('/login');
     }
   };
@@ -129,14 +143,14 @@ export function AuthProvider({ children }) {
 
     // Shorthand <-> Canonical key mapping
     const MAPPINGS = {
-      [PERMISSIONS.MANAGE_GALLERY]: ['cms_gallery:manage:any', 'cms_gallery:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_NOTICES]: ['cms_notices:manage:any', 'cms_notices:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_EVENTS]: ['cms_events:manage:any', 'cms_events:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_INCUBATIONS]: ['cms_incubations:manage:any', 'cms_incubations:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_TALKS]: ['cms_talks:manage:any', 'cms_talks:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_FAQS]: ['cms_faqs:manage:any', 'cms_faqs:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_QUERIES]: ['cms_queries:manage:any', 'cms_queries:read:any', 'cms:read:any'],
-      [PERMISSIONS.MANAGE_TEAM]: ['cms_team:manage:any', 'cms_team:read:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_GALLERY]: ['cms_gallery:manage:any', 'cms_gallery:read:any', 'cms_gallery:create:any', 'cms_gallery:update:any', 'cms_gallery:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_NOTICES]: ['cms_notices:manage:any', 'cms_notices:read:any', 'cms_notices:create:any', 'cms_notices:update:any', 'cms_notices:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_EVENTS]: ['cms_events:manage:any', 'cms_events:read:any', 'cms_events:create:any', 'cms_events:update:any', 'cms_events:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_INCUBATIONS]: ['cms_incubations:manage:any', 'cms_incubations:read:any', 'cms_incubations:create:any', 'cms_incubations:update:any', 'cms_incubations:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_TALKS]: ['cms_talks:manage:any', 'cms_talks:read:any', 'cms_talks:create:any', 'cms_talks:update:any', 'cms_talks:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_FAQS]: ['cms_faqs:manage:any', 'cms_faqs:read:any', 'cms_faqs:create:any', 'cms_faqs:update:any', 'cms_faqs:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_QUERIES]: ['cms_queries:manage:any', 'cms_queries:read:any', 'cms_queries:create:any', 'cms_queries:update:any', 'cms_queries:delete:any', 'cms:read:any'],
+      [PERMISSIONS.MANAGE_TEAM]: ['cms_team:manage:any', 'cms_team:read:any', 'cms_team:create:any', 'cms_team:update:any', 'cms_team:delete:any', 'cms:read:any'],
       [PERMISSIONS.MANAGE_TEAMS]: ['team:read:any', 'team:create:any', 'team:update:any'],
       [PERMISSIONS.MANAGE_USERS]: ['user:read:any', 'user:create:any', 'user:update:any'],
       [PERMISSIONS.INDUCTION_VIEW]: ['induction_application:read:any'],
@@ -144,17 +158,34 @@ export function AuthProvider({ children }) {
       [PERMISSIONS.INDUCTION_SETTINGS]: ['induction_settings:read:any', 'induction_settings:update:any'],
     };
 
+    if (permission === PERMISSIONS.MANAGE_TEAMS && isTeamAdmin) {
+      return true;
+    }
+
     const alternatives = MAPPINGS[permission];
     if (alternatives && alternatives.some((alt) => permissions.includes(alt))) {
       return true;
     }
 
-    // Admin default modules fallback
-    if (userRole === ROLES.ADMIN || userRole === 'Admin') {
-      return true;
-    }
-
     return false;
+  };
+
+  /**
+   * Granular CRUD check for a specific resource module (e.g. 'cms_gallery', 'create')
+   */
+  const hasCrudPermission = (resource, action = 'view') => {
+    if (!currentUser) return false;
+    if (isSuperAdmin) return true;
+    const userRole = roles[0]?.name || currentUser.role;
+    if (userRole === ROLES.SUPER_ADMIN || userRole === 'Super Admin') return true;
+    if (roles.some((r) => r.name?.toLowerCase() === 'developer')) return true;
+
+    const norm = action === 'view' ? 'read' : action;
+    return (
+      permissions.includes(`${resource}:${norm}:any`) ||
+      permissions.includes(`${resource}:manage:any`) ||
+      permissions.includes(`cms:${norm}:any`)
+    );
   };
 
   /**
@@ -168,9 +199,13 @@ export function AuthProvider({ children }) {
     if (userRole === ROLES.SUPER_ADMIN || userRole === 'Super Admin') return true;
     if (roles.some((r) => r.name?.toLowerCase() === 'developer')) return true;
 
-    if (path.startsWith('/profile') || path.startsWith('/tasks')) return true;
+    if (path.startsWith('/profile') || path.startsWith('/activity-log')) return true;
     if (path === '/dashboard' || path === '/') {
-      return userRole !== ROLES.MEMBER && userRole !== 'Member';
+      return (
+        isTeamAdmin ||
+        permissions.some((p) => !p.endsWith(':own')) ||
+        (userRole !== ROLES.MEMBER && userRole !== 'Member')
+      );
     }
 
     if (path.includes('/main-website/notices')) return hasPermission(PERMISSIONS.MANAGE_NOTICES);
@@ -181,13 +216,12 @@ export function AuthProvider({ children }) {
     if (path.includes('/main-website/faqs')) return hasPermission(PERMISSIONS.MANAGE_FAQS);
     if (path.includes('/main-website/talks')) return hasPermission(PERMISSIONS.MANAGE_TALKS);
     if (path.includes('/main-website/queries')) return hasPermission(PERMISSIONS.MANAGE_QUERIES);
-    if (path.includes('/teams')) return hasPermission(PERMISSIONS.MANAGE_USERS);
-    if (path.includes('/induction')) return hasPermission(PERMISSIONS.INDUCTION_VIEW);
-    if (path.includes('/evaluation')) return hasPermission(PERMISSIONS.INDUCTION_EVALUATE);
-    if (path.includes('/activity-log')) return hasPermission(PERMISSIONS.INDUCTION_VIEW);
-    if (path.includes('/settings')) return hasPermission(PERMISSIONS.INDUCTION_SETTINGS);
     if (path.includes('/users')) return hasPermission(PERMISSIONS.MANAGE_USERS);
-    if (path.includes('/permissions')) return isSuperAdmin;
+    if (path.includes('/team-management')) return isTeamAdmin || hasPermission(PERMISSIONS.MANAGE_TEAMS) || hasPermission(PERMISSIONS.MANAGE_USERS);
+    if (path.includes('/induction/evaluation')) return hasPermission(PERMISSIONS.INDUCTION_EVALUATE);
+    if (path.includes('/induction/settings')) return hasPermission(PERMISSIONS.INDUCTION_SETTINGS);
+    if (path.includes('/induction')) return hasPermission(PERMISSIONS.INDUCTION_VIEW);
+    if (path.includes('/role-management')) return isSuperAdmin;
 
     return false;
   };
@@ -202,13 +236,23 @@ export function AuthProvider({ children }) {
         const primaryRole = res.isSuperAdmin
           ? 'Super Admin'
           : res.roles?.[0]?.name || res.user.role || 'Member';
+        const userTeams = res.teams || res.user.teams || [];
+        const teamAdminFlag =
+          Boolean(res.isTeamAdmin) ||
+          userTeams.some((t) =>
+            ['lead', 'co-lead', 'club secretary', 'coordinator'].includes(
+              (t.position || '').toLowerCase()
+            )
+          );
         const normalizedUser = {
           ...res.user,
           role: primaryRole,
           roles: res.roles || [],
-          teams: res.teams || res.user.teams || [],
+          teams: userTeams,
+          isTeamAdmin: teamAdminFlag,
         };
         setCurrentUser(normalizedUser);
+        setIsTeamAdmin(teamAdminFlag);
         return normalizedUser;
       }
     } catch (err) {
@@ -217,7 +261,10 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const isAdmin = isSuperAdmin || roles.some((r) => r.name === 'Admin' || r.name === ROLES.ADMIN);
+  const isAdmin =
+    isSuperAdmin ||
+    isTeamAdmin ||
+    roles.some((r) => r.name === 'Admin' || r.name === ROLES.ADMIN);
   const isMember = roles.some((r) => r.name === 'Member' || r.name === ROLES.MEMBER);
   const isDeveloper = roles.some((r) => r.name?.toLowerCase() === 'developer');
   const canAddUser = isSuperAdmin || isDeveloper;
@@ -231,6 +278,7 @@ export function AuthProvider({ children }) {
         isLoading,
         isAuthenticated: Boolean(currentUser),
         isSuperAdmin,
+        isTeamAdmin,
         isAdmin,
         isMember,
         isDeveloper,
@@ -241,6 +289,7 @@ export function AuthProvider({ children }) {
         logout,
         checkSession,
         hasPermission,
+        hasCrudPermission,
         canAccessRoute,
       }}
     >

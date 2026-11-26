@@ -8,7 +8,7 @@ export default function UnifiedTeamRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/teams');
+    router.replace('/team-management');
   }, [router]);
 
   return <Loader fullPage text="Opening Unified Team Management..." />;

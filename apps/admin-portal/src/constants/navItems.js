@@ -16,8 +16,8 @@ export const NAV_ITEMS = [
   },
   {
     label: "Evaluation",
-    href: "/evaluation",
-    match: "/evaluation",
+    href: "/induction/evaluation",
+    match: "/induction/evaluation",
     icon: (active) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="5" y="4" width="14" height="18" rx="2" fill={active ? "#1E40AF" : "#8F95A3"} />
@@ -30,8 +30,8 @@ export const NAV_ITEMS = [
   },
   {
     label: "Settings",
-    href: "/settings",
-    match: "/settings",
+    href: "/induction/settings",
+    match: "/induction/settings",
     icon: (active) => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
         <path

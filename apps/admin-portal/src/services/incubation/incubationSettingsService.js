@@ -95,17 +95,21 @@ export const loadAllSettings = async () => {
 };
 
 export const saveAllSettings = async (data) => {
-  const promises = [];
-  if (data?.privacySettings) {
-    promises.push(updatePrivacySettings(data.privacySettings));
+  const settings = {};
+  if (data?.privacySettings !== undefined) {
+    settings.privacy_settings = { value: data.privacySettings, category: "privacy" };
   }
-  if (data?.scoringScale) {
-    promises.push(updateScoringScale(data.scoringScale));
+  if (data?.scoringScale !== undefined) {
+    settings.scoring_scale = { value: data.scoringScale, category: "scoring" };
   }
-  if (data?.evaluationParameters) {
-    promises.push(updateEvaluationParameters(data.evaluationParameters));
+  if (data?.evaluationParameters !== undefined) {
+    settings.evaluation_parameters = {
+      value: data.evaluationParameters,
+      category: "evaluation",
+    };
   }
-  await Promise.all(promises);
+  if (Object.keys(settings).length === 0) return;
+  await apiClient.put("/settings", { settings });
 };
 
 export const resetAllSettings = async () => {

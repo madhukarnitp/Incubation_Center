@@ -12,7 +12,6 @@ import { activityLogsRoutes } from "./activity-logs";
 import { systemSettingsRoutes } from "./settings";
 import { dashboardRoutes } from "./dashboard";
 import { uploadRoutes } from "./upload";
-import { tasksRoutes } from "./tasks";
 import { teamsRoutes } from "./teams";
 
 export function registerRoutes(app: FastifyInstance) {
@@ -31,5 +30,4 @@ export function registerRoutes(app: FastifyInstance) {
   app.register(systemSettingsRoutes, { prefix: "/api/settings" });
   app.register(dashboardRoutes, { prefix: "/api/dashboard" });
   app.register(uploadRoutes, { prefix: "/api/upload" });
-  app.register(tasksRoutes, { prefix: "/api/tasks" });
 }

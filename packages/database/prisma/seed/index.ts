@@ -6,7 +6,7 @@ import { seedSuperAdmin } from "./super-admin";
 import { seedEvents } from "./events";
 import { seedInduction } from "./induction";
 import { seedCms } from "./cms";
-import { seedTasks } from "./tasks";
+import { seedTeams } from "./teams";
 
 async function main() {
   console.log("==================================");
@@ -25,7 +25,7 @@ async function main() {
 
   await seedCms(prisma);
 
-  await seedTasks(prisma);
+  await seedTeams(prisma);
 
   console.log("\n🎉 Database seed completed.");
 }

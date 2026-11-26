@@ -103,14 +103,30 @@ export default function MyProfilePage() {
         title="Profile"
         description="Manage your account details, profile image, and role permissions."
         actions={
-          <>
-            <Button variant="primary" icon={Edit2} onClick={handleStartEdit}>
-              Edit Profile
-            </Button>
-            <Button variant="outline" icon={LogOut} className="text-rose-600 hover:bg-rose-50" onClick={handleLogout}>
-              Sign Out
-            </Button>
-          </>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              aria-label="Edit Profile"
+              className="group relative inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#1E40AF] text-white hover:bg-[#1E3A8A] shadow-xs transition-colors cursor-pointer"
+            >
+              <Edit2 className="w-4 h-4" />
+              <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 z-20">
+                Edit Profile
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              aria-label="Sign Out"
+              className="group relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#E2E8F0] bg-white text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 z-20">
+                Sign Out
+              </span>
+            </button>
+          </div>
         }
       />
 
@@ -149,17 +165,19 @@ export default function MyProfilePage() {
             </div>
 
             <p className="text-xs text-[#1E40AF] font-semibold">
-              {currentUser?.post || 'Team Member'}
+              {currentUser?.post ||
+                currentUser?.teams?.map((t) => t.position).find(Boolean) ||
+                'Member'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {currentUser?.department || 'Incubation Center, NIT Patna'}
+              {currentUser?.department || 'Department not specified'}
             </p>
 
             {Array.isArray(currentUser?.teams) && currentUser.teams.length > 0 && (
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 pt-1.5">
                 {currentUser.teams.map((team) => (
                   <Badge key={team.id} variant="purple" size="xs">
-                    {team.name}
+                    {team.position ? `${team.name} · ${team.position}` : team.name}
                   </Badge>
                 ))}
               </div>
@@ -184,11 +202,27 @@ export default function MyProfilePage() {
             </div>
             <div className="flex items-center justify-between py-1 border-b border-[#E2E8F0]">
               <span className="text-slate-500">Designation</span>
-              <span className="font-semibold text-slate-900">{currentUser?.post || 'Member'}</span>
+              <span className="font-semibold text-slate-900">
+                {currentUser?.post ||
+                  currentUser?.teams?.map((t) => t.position).find(Boolean) ||
+                  'Member'}
+              </span>
             </div>
             <div className="flex items-center justify-between py-1 border-b border-[#E2E8F0]">
               <span className="text-slate-500">Department</span>
-              <span className="font-semibold text-slate-900">{currentUser?.department || 'Incubation Center'}</span>
+              <span className="font-semibold text-slate-900">
+                {currentUser?.department || 'Not specified'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3 py-1 border-b border-[#E2E8F0]">
+              <span className="text-slate-500 shrink-0">Team</span>
+              <span className="font-semibold text-slate-900 text-right truncate">
+                {Array.isArray(currentUser?.teams) && currentUser.teams.length > 0
+                  ? currentUser.teams
+                      .map((t) => (t.position ? `${t.name} (${t.position})` : t.name))
+                      .join(', ')
+                  : 'Not assigned'}
+              </span>
             </div>
             <div className="flex items-center justify-between py-1">
               <span className="text-slate-500">Account Status</span>
@@ -284,7 +318,7 @@ export default function MyProfilePage() {
       {/* Edit Details Modal */}
       {isEditing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-lg rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95">
             <Card.Header>
               <Card.Title icon={Edit2}>Edit Profile Details</Card.Title>
               <button onClick={() => setIsEditing(false)} className="p-1 rounded-md text-slate-400 hover:text-slate-700">
@@ -298,9 +332,48 @@ export default function MyProfilePage() {
                 <Input label="Official Email" type="email" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input label="Designation (Managed by Admin)" readOnly disabled value={formData.post || 'Team Member'} />
-                <Input label="Department (Managed by Admin)" readOnly disabled value={formData.department || 'Incubation Center'} />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input
+                  label="Designation (Admin)"
+                  readOnly
+                  disabled
+                  value={
+                    formData.post ||
+                    currentUser?.teams?.map((t) => t.position).find(Boolean) ||
+                    'Member'
+                  }
+                />
+                <div>
+                  <Input
+                    label="Department (e.g. CSE, ECE)"
+                    list="department-options"
+                    placeholder="e.g. CSE, ECE, EE"
+                    value={formData.department}
+                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  />
+                  <datalist id="department-options">
+                    <option value="CSE" />
+                    <option value="ECE" />
+                    <option value="EE" />
+                    <option value="ME" />
+                    <option value="CE" />
+                    <option value="CHE" />
+                    <option value="ARCH" />
+                    <option value="MME" />
+                  </datalist>
+                </div>
+                <Input
+                  label="Team (Admin)"
+                  readOnly
+                  disabled
+                  value={
+                    Array.isArray(currentUser?.teams) && currentUser.teams.length > 0
+                      ? currentUser.teams
+                          .map((t) => (t.position ? `${t.name} (${t.position})` : t.name))
+                          .join(', ')
+                      : 'Not assigned'
+                  }
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

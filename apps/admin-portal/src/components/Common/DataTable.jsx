@@ -23,6 +23,7 @@ export default function DataTable({
   defaultPageSize = 10,
   pageSizeOptions = [10, 25, 50, 100],
   actions = null,
+  onRowClick = null,
   emptyMessage = 'No records found matching your criteria.',
   className = '',
 }) {
@@ -105,27 +106,27 @@ export default function DataTable({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* Top Toolbar: Search + Page Size + Actions */}
+      {/* Top Toolbar: Search (Left) + Show & Actions (Right) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          {/* Search Box */}
-          <div className="relative flex-1 sm:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setCurrentPage(1);
-              }}
-              placeholder={searchPlaceholder}
-              className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-[#E2E8F0] bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1E40AF] focus:ring-1 focus:ring-[#1E40AF] transition-all"
-            />
-          </div>
+        {/* Search Box (Left) */}
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setCurrentPage(1);
+            }}
+            placeholder={searchPlaceholder}
+            className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-[#E2E8F0] bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#1E40AF] focus:ring-1 focus:ring-[#1E40AF] transition-all"
+          />
+        </div>
 
-          {/* Rows per page dropdown */}
+        {/* Right Side: Show rows + Optional Actions */}
+        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 shrink-0">
-            <span className="hidden md:inline">Show:</span>
+            <span>Show:</span>
             <select
               value={pageSize}
               onChange={(e) => {
@@ -141,16 +142,14 @@ export default function DataTable({
               ))}
             </select>
           </div>
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
-
-        {/* Right Actions Slot */}
-        {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
       </div>
 
       {/* Table Surface */}
-      <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[640px] sm:min-w-full">
+      <div className="rounded-md border border-[#E2E8F0] bg-white shadow-xs">
+        <div className="overflow-x-auto lg:overflow-visible">
+          <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-[#F8FAFC] text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-[#E2E8F0]">
               <tr>
                 {columns.map((col) => {
@@ -165,7 +164,15 @@ export default function DataTable({
                         isSortable ? 'cursor-pointer hover:text-slate-900 transition-colors' : ''
                       }`}
                     >
-                      <div className="flex items-center gap-1.5">
+                      <div
+                        className={`flex items-center gap-1.5 ${
+                          col.className?.includes('text-center')
+                            ? 'justify-center'
+                            : col.className?.includes('text-right')
+                              ? 'justify-end'
+                              : ''
+                        }`}
+                      >
                         <span>{col.header}</span>
                         {isSortable && isSorted && (
                           <span className="text-[#1E40AF]">
@@ -183,7 +190,8 @@ export default function DataTable({
                 paginatedData.map((item, idx) => (
                   <tr
                     key={item.id || idx}
-                    className="hover:bg-[#F8FAFC] transition-colors"
+                    onClick={onRowClick ? () => onRowClick(item) : undefined}
+                    className={`hover:bg-[#F8FAFC] transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
                   >
                     {columns.map((col) => (
                       <td key={col.key} className={`py-3 px-4 ${col.className || ''}`}>

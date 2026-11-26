@@ -9,6 +9,7 @@ import VisibilityPrivacySettings from "./VisibilityPrivacy/VisibilityPrivacySett
 import ConfigurationActions from "./ConfigurationActions";
 import AddInterviewRoundModal from "./InterviewRounds/AddInterviewRoundModal";
 import Toast from "@/components/Common/Toast";
+import { ConfirmModal } from "@/components/ui";
 
 import PageHeader from "@/components/common/PageHeader";
 import { Sliders, Save, RefreshCw } from "@/components/icons";
@@ -33,6 +34,7 @@ export default function IncubationSettingsPanel() {
   const [evaluationParameters, setEvaluationParameters] = useState([]);
   const [teams, setTeams] = useState([]);
   const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [addRound, setAddRound] = useState(null);
@@ -205,22 +207,23 @@ export default function IncubationSettingsPanel() {
       });
 
       // Sync parameters to active rounds in database
-      if (rounds && rounds.length > 0) {
-        for (const round of rounds) {
-          if (round.id && !round.id.startsWith("temp-")) {
-            try {
-              await saveParametersApi(
-                round.id,
-                evaluationParameters.map((p) => ({
-                  parameterName: p.name,
-                  weighttage: Number(p.weight) || 10,
-                }))
-              );
-            } catch (err) {
-              console.warn("Could not sync round parameters:", err);
-            }
-          }
-        }
+      const validParameters = (evaluationParameters || [])
+        .map((p) => ({
+          parameterName: String(p.parameterName || p.name || p.label || p.title || "").trim(),
+          weighttage: Math.min(100, Math.max(1, Math.round(Number(p.weighttage ?? p.weight) || 10))),
+        }))
+        .filter((p) => p.parameterName.length > 0);
+
+      if (rounds && rounds.length > 0 && validParameters.length > 0) {
+        await Promise.all(
+          rounds
+            .filter((round) => round.id && !round.id.startsWith("temp-"))
+            .map((round) =>
+              saveParametersApi(round.id, validParameters).catch((err) => {
+                console.warn("Could not sync round parameters:", err);
+              })
+            )
+        );
       }
 
       showToast("Evaluation parameters & settings saved to database successfully.", "success");
@@ -232,12 +235,12 @@ export default function IncubationSettingsPanel() {
     }
   };
 
-  const handleReset = async () => {
-    const confirmation = window.confirm(
-      "Are you sure you want to reset all settings to default? This action cannot be undone."
-    );
-    if (!confirmation) return;
+  const handleReset = () => {
+    setIsResetConfirmOpen(true);
+  };
 
+  const confirmReset = async () => {
+    setIsResetConfirmOpen(false);
     setRounds(DEFAULT_INTERVIEW_ROUNDS);
     setSettings(DEFAULT_PRIVACY_SETTINGS);
     setEvaluationParameters(DEFAULT_EVALUATION_PARAMETERS);
@@ -301,6 +304,16 @@ export default function IncubationSettingsPanel() {
           onSubmit={handleSubmitRound}
         />
       )}
+
+      <ConfirmModal
+        isOpen={isResetConfirmOpen}
+        onClose={() => setIsResetConfirmOpen(false)}
+        onConfirm={confirmReset}
+        title="Reset Configuration"
+        message="Are you sure you want to reset all settings to default? This action cannot be undone."
+        confirmText="Reset All"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -114,7 +114,7 @@ export default function DashboardPage() {
             )}
             {hasPermission(PERMISSIONS.INDUCTION_EVALUATE) && (
               <Link
-                href="/evaluation"
+                href="/induction/evaluation"
                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#1E40AF] hover:bg-[#1E3A8A] text-white text-xs font-semibold shadow-xs transition-colors"
               >
                 <GraduationCap className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function DashboardPage() {
               {stats.totalApplicants}
             </h3>
             <Link
-              href="/induction"
+              href="/induction/candidates"
               className="text-[11px] font-bold text-[#1E40AF] hover:underline flex items-center gap-1 mt-1.5"
             >
               <span>View</span>
@@ -338,7 +338,7 @@ export default function DashboardPage() {
                 </div>
 
                 <Link
-                  href="/induction"
+                  href="/induction/candidates"
                   className="text-xs font-semibold text-[#1E40AF] hover:underline flex items-center gap-1"
                 >
                   <span>View all</span>
@@ -386,7 +386,7 @@ export default function DashboardPage() {
                           </td>
                           <td className="py-2.5 px-3 text-right">
                             <Link
-                              href="/evaluation"
+                              href="/induction/evaluation"
                               className="inline-flex items-center gap-1 text-xs font-semibold text-[#1E40AF] hover:underline"
                             >
                               <span>Evaluate</span>
@@ -490,8 +490,8 @@ export default function DashboardPage() {
                   },
                   {
                     href: '/users',
-                    title: 'Team Members',
-                    subtitle: 'Members, roles & tasks',
+                    title: 'Users',
+                    subtitle: 'Users, teams & roles',
                     icon: Users2,
                     bg: 'bg-indigo-50 text-indigo-700 border-indigo-200',
                     permission: PERMISSIONS.MANAGE_USERS,
@@ -529,7 +529,7 @@ export default function DashboardPage() {
         {/* Dashboard Query Detail Modal */}
         {selectedDashboardQuery && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-lg rounded-md bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
               <div className="flex items-start justify-between pb-3 border-b border-[#E2E8F0]">
                 <div>
                   <h2 className="text-base font-bold text-slate-900">{selectedDashboardQuery.name}</h2>

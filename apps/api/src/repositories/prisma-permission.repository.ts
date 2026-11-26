@@ -106,14 +106,14 @@ export class PrismaPermissionRepository implements PermissionRepository {
       }
     }
 
-    // 2. Team-Based Roles & Permissions (TBAC)
+    // 2. Team-Based Permissions (TBAC) & Team-Assigned Roles
     for (const tm of teamMemberships) {
-      // 2a. Direct Team Permissions (e.g. Media Team -> Gallery)
+      // Direct Team Permissions (e.g. Media Team -> Gallery)
       for (const tp of tm.team.permissions) {
         addPerm(tp.permission);
       }
 
-      // 2b. Team Roles
+      // Roles assigned to the whole team
       for (const tr of tm.team.roles) {
         if (tr.role.name === "Super Admin") {
           isSuperAdmin = true;

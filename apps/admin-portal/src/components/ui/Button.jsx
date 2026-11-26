@@ -30,17 +30,22 @@ export default function Button({
   iconRight: IconRight = null,
   className = '',
   onClick,
+  title,
   ...props
 }) {
   const baseVariant = VARIANTS[variant] || VARIANTS.primary;
   const baseSize = SIZES[size] || SIZES.sm;
+  const isIconOnly = !children && Boolean(Icon);
+  const tooltipText = title || props['aria-label'];
 
   return (
     <button
       type={type}
       disabled={isDisabled || isLoading}
       onClick={onClick}
-      className={`inline-flex items-center justify-center gap-1.5 font-semibold rounded-md transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${baseVariant} ${baseSize} ${className}`}
+      aria-label={props['aria-label'] || (isIconOnly ? tooltipText : undefined)}
+      title={isIconOnly ? undefined : title}
+      className={`${isIconOnly ? 'group/btn relative ' : ''}inline-flex items-center justify-center gap-1.5 font-semibold rounded-md transition-all cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${baseVariant} ${baseSize} ${className}`}
       {...props}
     >
       {isLoading ? (
@@ -50,6 +55,11 @@ export default function Button({
       ) : null}
       {children && <span>{children}</span>}
       {!isLoading && IconRight && <IconRight className="w-3.5 h-3.5 shrink-0" />}
+      {isIconOnly && tooltipText && (
+        <span className="pointer-events-none absolute bottom-full mb-1.5 right-0 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover/btn:opacity-100 z-30">
+          {tooltipText}
+        </span>
+      )}
     </button>
   );
 }

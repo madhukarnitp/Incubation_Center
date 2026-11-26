@@ -7,8 +7,12 @@ import { ShieldAlert, ArrowRight } from '@/components/icons';
 import Link from 'next/link';
 import Loader from '@/components/ui/Loader';
 
-export default function ProtectedRoute({ children, requiredPermission = null }) {
-  const { currentUser, canAccessRoute, hasPermission, isLoading } = useAuth();
+export default function ProtectedRoute({
+  children,
+  requiredPermission = null,
+  allowTeamAdmin = false,
+}) {
+  const { currentUser, canAccessRoute, hasPermission, isTeamAdmin, isLoading } = useAuth();
   const pathname = usePathname();
 
   if (isLoading) {
@@ -16,7 +20,10 @@ export default function ProtectedRoute({ children, requiredPermission = null }) 
   }
 
   const isAllowed =
-    canAccessRoute(pathname) && (!requiredPermission || hasPermission(requiredPermission));
+    canAccessRoute(pathname) &&
+    (!requiredPermission ||
+      hasPermission(requiredPermission) ||
+      (allowTeamAdmin && isTeamAdmin));
 
   if (!isAllowed) {
     return (

@@ -148,6 +148,7 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
 
       const user = (request as any).user;
       try {
+        (request as any).activityLogged = true;
         const parameters = await inductionService.saveParameters(
           roundId,
           parsed.data.parameters,

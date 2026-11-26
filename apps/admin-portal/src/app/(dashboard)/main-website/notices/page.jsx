@@ -226,7 +226,7 @@ export default function NoticesManagementPage() {
         {/* Add/Edit Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-lg rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
               <Card.Header>
                 <Card.Title>{editingItem ? 'Edit Notice' : 'Create New Notice'}</Card.Title>
                 <button onClick={() => setIsModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-800 rounded-md hover:bg-slate-100">

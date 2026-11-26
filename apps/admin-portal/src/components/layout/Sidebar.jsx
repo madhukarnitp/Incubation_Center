@@ -1,17 +1,25 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { SIDEBAR_NAV_GROUPS } from '@/constants/sidebarNav';
 import { ROLE_LABELS } from '@/constants/rbac';
-import { X, LogOut } from '@/components/icons';
+import { X, LogOut, ChevronDown, ChevronRight } from '@/components/icons';
 
 export default function Sidebar({ isOpen, setIsOpen }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser, isSuperAdmin, hasPermission, isMember, logout } = useAuth();
+  const { currentUser, isSuperAdmin, isTeamAdmin, hasPermission, isMember, logout } = useAuth();
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+
+  const toggleGroup = (title) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
 
   const handleLogout = () => {
     logout();
@@ -86,7 +94,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
           {SIDEBAR_NAV_GROUPS.map((group, gIdx) => {
             const visibleItems = group.items.filter((item) => {
               if (isSuperAdmin) return true;
-              if (item.href === '/profile' || item.href === '/tasks') return true;
+              if (item.href === '/profile' || item.href === '/activity-log') return true;
+              if (item.allowTeamAdmin && isTeamAdmin) return true;
               if (item.permission) {
                 return hasPermission(item.permission);
               }
@@ -99,12 +108,24 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
             if (visibleItems.length === 0) return null;
 
+            const isCollapsed = Boolean(collapsedGroups[group.title]);
+
             return (
               <div key={group.title || gIdx} className="space-y-1">
-                <p className="px-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  {group.title}
-                </p>
-                <div className="space-y-0.5">
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className="w-full flex items-center justify-between px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  <span>{group.title}</span>
+                  {isCollapsed ? (
+                    <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                  )}
+                </button>
+                {!isCollapsed && (
+                  <div className="space-y-0.5">
                   {visibleItems.map((item) => {
                     const isActive =
                       pathname === item.href ||
@@ -144,7 +165,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                       </Link>
                     );
                   })}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}

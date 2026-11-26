@@ -89,14 +89,7 @@ export function resolveActionAndCategory(
     return { category: "Induction", action: `${verb} induction records` };
   }
 
-  // 2. Tasks
-  if (urlPath.startsWith("/api/tasks")) {
-    if (urlPath.includes("/status"))
-      return { category: "Tasks", action: `Updated task status to "${safeStr(body.status, "Updated")}"` };
-    return { category: "Tasks", action: `${verb} task "${safeStr(body.title, "Task")}"` };
-  }
-
-  // 3. Users
+  // 2. Users
   if (urlPath.startsWith("/api/users") || urlPath.startsWith("/api/admin/users")) {
     if (urlPath.includes("/me")) return { category: "Users", action: "Updated personal profile" };
     if (method === "POST") return { category: "Users", action: `Registered user: "${safeStr(body.name || body.email, "Team Member")}"` };

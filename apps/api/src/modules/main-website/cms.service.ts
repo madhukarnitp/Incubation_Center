@@ -44,14 +44,40 @@ const sectionCreateSchemas: Record<string, z.ZodType<any>> = {
   }),
   events: z.object({
     title: z.string().min(1).max(250).trim(),
+    tagline: z.string().max(300).trim().optional().nullable(),
     category: z.string().max(80).trim().default("Flagship Event"),
     date: z.string().min(1).max(60).trim(),
-    time: z.string().max(80).trim().optional().nullable(),
-    venue: z.string().max(200).trim().optional().nullable(),
+    startDate: z.string().max(60).trim().optional().nullable(),
+    endDate: z.string().max(60).trim().optional().nullable(),
+    time: z.string().max(120).trim().optional().nullable(),
+    venue: z.string().max(250).trim().optional().nullable(),
+    mode: z.string().max(60).trim().default("In-Person"),
     status: z.string().max(60).trim().default("Upcoming"),
     registrationLink: safeUrl.optional().nullable(),
     image: safeUrl.optional().nullable(),
     description: z.string().max(10000).optional().nullable(),
+    eligibility: z.string().max(2000).trim().optional().nullable(),
+    highlights: z.array(z.string().max(500).trim()).optional().nullable(),
+    speakers: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(150).trim(),
+          role: z.string().max(200).trim().default(""),
+        }),
+      )
+      .optional()
+      .nullable(),
+    sponsors: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(150).trim(),
+          tier: z.string().max(100).trim().optional().default("Partner"),
+          logoUrl: safeUrl.optional().nullable(),
+          website: safeUrl.optional().nullable(),
+        }),
+      )
+      .optional()
+      .nullable(),
   }),
   team: z.object({
     name: z.string().min(1).max(150).trim(),

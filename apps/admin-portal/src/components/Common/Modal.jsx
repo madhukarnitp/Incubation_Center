@@ -21,11 +21,11 @@ export default function Modal({ isOpen, title, onClose, children, maxWidth = "ma
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs px-3 py-6 animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs px-3 py-6 overflow-y-auto animate-in fade-in"
       onClick={onClose}
     >
       <div
-        className={`w-full ${maxWidth} rounded-md border border-[#E2E8F0] bg-white p-5 text-[#0F172A] shadow-xl sm:p-6 animate-in zoom-in-95`}
+        className={`w-full ${maxWidth} max-h-[90vh] overflow-y-auto my-auto rounded-md border border-[#E2E8F0] bg-white p-5 text-[#0F172A] shadow-xl sm:p-6 animate-in zoom-in-95`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

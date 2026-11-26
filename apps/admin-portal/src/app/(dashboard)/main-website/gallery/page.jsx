@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PERMISSIONS } from '@/constants/rbac';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import ImageUploader from '@/components/Common/ImageUploader';
+import PhotoViewerModal from '@/components/Common/PhotoViewerModal';
 import PageHeader from '@/components/common/PageHeader';
 import { Button, Input, Select, Badge, Card, ConfirmModal } from '@/components/ui';
 import {
@@ -30,6 +31,7 @@ export default function GalleryManagementPage() {
 
   const [search, setSearch] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -128,9 +130,12 @@ export default function GalleryManagementPage() {
 
         {/* Gallery Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredGallery.map((item) => (
+          {filteredGallery.map((item, idx) => (
             <Card key={item.id} padding="p-0" className="group overflow-hidden flex flex-col justify-between">
-              <div className="relative h-44 w-full bg-[#F8FAFC] overflow-hidden">
+              <div
+                onClick={() => setViewerIndex(idx)}
+                className="relative h-44 w-full bg-[#F8FAFC] overflow-hidden cursor-pointer"
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.url}
@@ -169,7 +174,7 @@ export default function GalleryManagementPage() {
         {/* Modal: Add Media */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-md rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-md max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
               <Card.Header>
                 <Card.Title>Add Photo to Gallery</Card.Title>
                 <button onClick={() => setIsModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-800 rounded-md hover:bg-slate-100">
@@ -217,6 +222,13 @@ export default function GalleryManagementPage() {
             </div>
           </div>
         )}
+        {/* Full-Screen Photo Viewer */}
+        <PhotoViewerModal
+          isOpen={viewerIndex !== null}
+          onClose={() => setViewerIndex(null)}
+          photos={filteredGallery}
+          initialIndex={viewerIndex ?? 0}
+        />
       </div>
     </ProtectedRoute>
   );

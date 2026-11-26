@@ -254,12 +254,6 @@ export class InductionService {
           },
           orderBy: { conductAt: "desc" },
         },
-        taskSubmissions: {
-          include: {
-            task: true,
-            evaluatedBy: { select: { id: true, name: true } },
-          },
-        },
       },
     });
 

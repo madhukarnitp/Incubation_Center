@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { UploadCloud, X, CheckCircle2, Image as ImageIcon } from '@/components/icons';
+import { UploadCloud, X, CheckCircle2, Image as ImageIcon, Eye } from '@/components/icons';
 import ProfileImageUploadModal from './ProfileImageUploadModal';
+import PhotoViewerModal from './PhotoViewerModal';
 
 export default function ImageUploader({
   value = '',
@@ -12,6 +13,7 @@ export default function ImageUploader({
   aspectRatio = 'square',
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
   const handleModalSave = (url) => {
@@ -77,7 +79,8 @@ export default function ImageUploader({
           <div className="relative group rounded-md overflow-hidden border border-[#E2E8F0] bg-[#F8FAFC] p-2 flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <div
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => setIsViewerOpen(true)}
+                title="View full screen"
                 className="relative w-11 h-11 rounded-full overflow-hidden bg-white border-2 border-[#1E40AF] shrink-0 cursor-pointer shadow-xs"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -93,12 +96,20 @@ export default function ImageUploader({
                   {value.startsWith('data:') ? 'Uploaded Profile Photo' : value.split('/').pop() || 'Image attached'}
                 </p>
                 <p className="text-[10px] text-slate-500 truncate mt-0.5">
-                  Click avatar or Edit button to crop/adjust in modal
+                  Click photo to view full screen, or Edit to crop/replace
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-1.5 pr-1">
+              <button
+                type="button"
+                onClick={() => setIsViewerOpen(true)}
+                className="p-1.5 rounded-md bg-white hover:bg-blue-50 text-slate-600 hover:text-[#1E40AF] border border-[#E2E8F0] transition-colors cursor-pointer shadow-2xs"
+                title="View full screen"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </button>
               <button
                 type="button"
                 onClick={() => setIsModalOpen(true)}
@@ -148,6 +159,14 @@ export default function ImageUploader({
         onSave={handleModalSave}
         initialImage={value}
         title="Upload Profile Photo"
+      />
+
+      {/* Full-Screen Photo Viewer */}
+      <PhotoViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        photos={value ? [{ url: value, title: label }] : []}
+        initialIndex={0}
       />
     </div>
   );

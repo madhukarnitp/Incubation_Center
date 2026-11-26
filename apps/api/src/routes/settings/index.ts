@@ -51,13 +51,14 @@ export const systemSettingsRoutes: FastifyPluginAsync = async (app) => {
         create: { key, value, category },
       });
 
-      // Log to SystemActivityLog
+      // Log to SystemActivityLog (prevent duplicate middleware log)
+      (request as any).activityLogged = true;
       await prisma.systemActivityLog.create({
         data: {
           userId: user.id,
           userName: user.name || user.email || "Administrator",
           userRole: user.role || "Admin",
-          action: `Updated configuration settings: ${key.replace("_", " ")}`,
+          action: `Updated configuration settings: ${key.replace(/_/g, " ")}`,
           category: "Settings",
           type: "settings-updated",
           status: "Approved",
@@ -68,7 +69,55 @@ export const systemSettingsRoutes: FastifyPluginAsync = async (app) => {
     },
   );
 
-  // 3. GET /api/settings
+  // 3. PUT /api/settings - Batch update settings in a single transaction & single activity log
+  app.put(
+    "/",
+    {
+      preHandler: [authorize({ permission: SettingsPermissions.UPDATE_ANY })],
+    },
+    async (request, reply) => {
+      const user = (request as any).user;
+      const { settings } = (request.body || {}) as {
+        settings?: Record<string, { value: any; category?: string }>;
+      };
+
+      if (!settings || typeof settings !== "object" || Object.keys(settings).length === 0) {
+        return reply.status(400).send({ error: "Settings map is required" });
+      }
+
+      const entries = Object.entries(settings).filter(([, item]) => item?.value !== undefined);
+      if (entries.length === 0) {
+        return reply.status(400).send({ error: "At least one valid setting value is required" });
+      }
+
+      const updated = await prisma.$transaction(
+        entries.map(([key, item]) =>
+          prisma.systemSetting.upsert({
+            where: { key },
+            update: { value: item.value, category: item.category || "general" },
+            create: { key, value: item.value, category: item.category || "general" },
+          }),
+        ),
+      );
+
+      (request as any).activityLogged = true;
+      await prisma.systemActivityLog.create({
+        data: {
+          userId: user.id,
+          userName: user.name || user.email || "Administrator",
+          userRole: user.role || "Admin",
+          action: "Updated induction evaluation parameters & settings",
+          category: "Settings",
+          type: "settings-updated",
+          status: "Approved",
+        },
+      });
+
+      return reply.send({ success: true, settings: updated });
+    },
+  );
+
+  // 4. GET /api/settings
   app.get(
     "/",
     {

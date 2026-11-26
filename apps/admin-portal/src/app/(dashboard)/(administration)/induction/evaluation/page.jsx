@@ -220,12 +220,13 @@ function EvaluationContent() {
         });
       }
 
-      CandidateService.updateCandidate(activeCandidate.id, {
-        notes,
-        selectedTags,
-        score: percentageScore,
-        evaluator: currentUser?.name || 'Evaluator',
-      });
+      setCandidates((prev) =>
+        prev.map((c) =>
+          c.id === activeCandidate.id
+            ? { ...c, score: percentageScore, notes, selectedTags }
+            : c
+        )
+      );
 
       ActivityService.logActivity({
         user: currentUser?.name || 'Evaluator',
@@ -240,16 +241,10 @@ function EvaluationContent() {
         type: 'info',
       });
     } catch (err) {
-      console.warn('Draft save error, updated locally:', err);
-      CandidateService.updateCandidate(activeCandidate.id, {
-        notes,
-        selectedTags,
-        score: percentageScore,
-        evaluator: currentUser?.name || 'Evaluator',
-      });
+      console.error('Draft save error:', err);
       setToast({
-        message: `Evaluation draft for ${activeCandidate.name} saved locally.`,
-        type: 'info',
+        message: err?.message || `Failed to save evaluation draft for ${activeCandidate.name}.`,
+        type: 'error',
       });
     } finally {
       setIsSubmitting(false);
@@ -278,14 +273,6 @@ function EvaluationContent() {
 
       await CandidateService.updateCandidateStatus(activeCandidate.id, newStatus, notes);
 
-      CandidateService.updateCandidate(activeCandidate.id, {
-        notes,
-        selectedTags,
-        score: percentageScore,
-        status: newStatus,
-        evaluator: currentUser?.name || 'Evaluator',
-      });
-
       ActivityService.logActivity({
         user: currentUser?.name || 'Evaluator',
         role: currentUser?.role || 'Reviewer',
@@ -308,17 +295,10 @@ function EvaluationContent() {
         )
       );
     } catch (err) {
-      console.warn('Evaluation submission error, fallback applied:', err);
-      CandidateService.updateCandidate(activeCandidate.id, {
-        notes,
-        selectedTags,
-        score: percentageScore,
-        status: newStatus,
-        evaluator: currentUser?.name || 'Evaluator',
-      });
+      console.error('Evaluation submission error:', err);
       setToast({
-        message: `Evaluation submitted locally for ${activeCandidate.name} (${percentageScore}/100).`,
-        type: 'success',
+        message: err?.message || `Failed to submit evaluation for ${activeCandidate.name}.`,
+        type: 'error',
       });
     } finally {
       setIsSubmitting(false);

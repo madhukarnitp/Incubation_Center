@@ -8,12 +8,11 @@ import CardWrapper from '@/components/Common/CardWrapper';
 import PageHeader from '@/components/common/PageHeader';
 import { History, User, Clock, Tag, RefreshCw } from '@/components/icons';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
-import { PERMISSIONS } from '@/constants/rbac';
+import { useAuth } from '@/context/AuthContext';
 import { Badge, Button } from '@/components/ui';
 
 const CATEGORIES = [
   'All',
-  'Tasks',
   'Teams',
   'Induction',
   'Users',
@@ -26,6 +25,8 @@ const CATEGORIES = [
 ];
 
 export default function ActivityLogPage() {
+  const { isSuperAdmin, isAdmin, isDeveloper } = useAuth();
+  const canViewAll = isSuperAdmin || isAdmin || isDeveloper;
   const [activities, setActivities] = useState([]);
   const [activeCategory, setActiveCategory] = useState('All');
   const [isLoading, setIsLoading] = useState(true);
@@ -145,24 +146,30 @@ export default function ActivityLogPage() {
   ];
 
   return (
-    <ProtectedRoute requiredPermission={PERMISSIONS.INDUCTION_VIEW}>
+    <ProtectedRoute>
       <div className="space-y-5 animate-in fade-in duration-200">
         {/* Header */}
         <PageHeader
           icon={History}
-          title="Activity & Audit Log"
-          description="Real-time audit log recording every administrative action, write, and update performed across the Admin Panel."
+          title={canViewAll ? 'Activity & Audit Log' : 'My Activity Log'}
+          description={
+            canViewAll
+              ? 'Real-time audit log recording every administrative action, write, and update performed across the Admin Panel.'
+              : 'Personal log of your own actions and updates performed in the portal.'
+          }
           actions={
-            <Button
-              variant="outline"
-              size="sm"
-              icon={RefreshCw}
+            <button
+              type="button"
               onClick={loadData}
               disabled={isLoading}
-              className="gap-1.5"
+              aria-label="Refresh"
+              className="group relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#E2E8F0] bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition-colors cursor-pointer"
             >
-              Refresh
-            </Button>
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 z-20">
+                Refresh
+              </span>
+            </button>
           }
         />
 

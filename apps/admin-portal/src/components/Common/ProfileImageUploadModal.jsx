@@ -105,7 +105,7 @@ export default function ProfileImageUploadModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs overflow-y-auto animate-in fade-in duration-200">
       <input
         type="file"
         ref={fileInputRef}
@@ -114,7 +114,7 @@ export default function ProfileImageUploadModal({
         className="hidden"
       />
 
-      <div className="relative w-full max-w-md rounded-xl bg-white border border-[#E2E8F0] shadow-2xl overflow-hidden font-sans text-slate-900 animate-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-md max-h-[90vh] overflow-y-auto my-auto rounded-xl bg-white border border-[#E2E8F0] shadow-2xl font-sans text-slate-900 animate-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-5 py-4 border-b border-[#E2E8F0] flex items-center justify-between bg-slate-50/70">
           <div>

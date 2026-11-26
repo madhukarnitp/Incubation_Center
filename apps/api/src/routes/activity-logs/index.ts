@@ -1,10 +1,9 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { prisma } from "@repo/database";
-import { AnalyticsPermissions, InductionPermissions } from "@repo/rbac";
+import { AnalyticsPermissions } from "@repo/rbac";
 import { requireAuth } from "../../middleware/auth";
-import { authorize } from "../../middleware/rbac";
-import { roleService } from "../../rbac";
+import { permissionService, roleService } from "../../rbac";
 
 const createLogSchema = z.object({
   action: z.string().min(1, "Action is required").max(500).trim(),
@@ -14,74 +13,89 @@ const createLogSchema = z.object({
   details: z.record(z.string(), z.unknown()).optional(),
 });
 
+async function canViewAllActivityLogs(userId: string): Promise<boolean> {
+  const [auth, roles] = await Promise.all([
+    permissionService.getAuthorizationContext(userId),
+    roleService.getUserRoles(userId),
+  ]);
+
+  if (auth.isSuperAdmin) return true;
+  if (
+    roles.some((r) =>
+      ["super admin", "admin", "developer"].includes(r.name.toLowerCase()),
+    )
+  ) {
+    return true;
+  }
+
+  return auth.permissions.some(
+    (p) => p.key === AnalyticsPermissions.READ_ANY.key,
+  );
+}
+
 export const activityLogsRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", requireAuth);
 
-  // 1. GET /api/activity-logs
-  app.get(
-    "/",
-    {
-      preHandler: [
-        authorize({
-          any: [
-            AnalyticsPermissions.READ_ANY,
-            InductionPermissions.APPLICATION_READ_ANY,
-          ],
-        }),
-      ],
-    },
-    async (request, reply) => {
-      const { category, page = "1", limit = "50" } = request.query as {
-        category?: string;
-        page?: string;
-        limit?: string;
-      };
+  // 1. GET /api/activity-logs - All logs for higher roles; own logs only for other users
+  app.get("/", async (request, reply) => {
+    const actor = (request as any).user;
+    const isHigherAuthority = await canViewAllActivityLogs(actor.id);
 
-      const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
-      const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
+    const { category, page = "1", limit = "50" } = request.query as {
+      category?: string;
+      page?: string;
+      limit?: string;
+    };
 
-      const where =
-        category && category.toLowerCase() !== "all"
-          ? { category: { equals: category, mode: "insensitive" as const } }
-          : {};
+    const take = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 100);
+    const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * take;
 
-      const [logs, total] = await Promise.all([
-        prisma.systemActivityLog.findMany({
-          where,
-          orderBy: { timestamp: "desc" },
-          take,
-          skip,
-          include: {
-            user: {
-              select: { id: true, name: true, email: true, image: true },
-            },
+    const where: any = {};
+    if (!isHigherAuthority) {
+      where.userId = actor.id;
+    }
+    if (category && category.toLowerCase() !== "all") {
+      where.category = { equals: category, mode: "insensitive" as const };
+    }
+
+    const [logs, total] = await Promise.all([
+      prisma.systemActivityLog.findMany({
+        where,
+        orderBy: { timestamp: "desc" },
+        take,
+        skip,
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, image: true },
           },
-        }),
-        prisma.systemActivityLog.count({ where }),
-      ]);
-
-      const formattedLogs = logs.map((l) => ({
-        id: l.id,
-        user: l.userName,
-        role: l.userRole,
-        action: l.action,
-        category: l.category,
-        type: l.type,
-        status: l.status,
-        timestamp: l.timestamp.toISOString(),
-      }));
-
-      return reply.send({
-        logs: formattedLogs,
-        pagination: {
-          page: parseInt(page, 10) || 1,
-          limit: take,
-          total,
-          totalPages: Math.ceil(total / take),
         },
-      });
-    },
-  );
+      }),
+      prisma.systemActivityLog.count({ where }),
+    ]);
+
+    const formattedLogs = logs.map((l) => ({
+      id: l.id,
+      userId: l.userId,
+      user: l.userName,
+      role: l.userRole,
+      action: l.action,
+      category: l.category,
+      type: l.type,
+      status: l.status,
+      timestamp: l.timestamp.toISOString(),
+    }));
+
+    return reply.send({
+      scope: isHigherAuthority ? "all" : "own",
+      logs: formattedLogs,
+      pagination: {
+        page: parseInt(page, 10) || 1,
+        limit: take,
+        total,
+        totalPages: Math.ceil(total / take),
+      },
+    });
+  });
 
   // 2. POST /api/activity-logs (Client audit record)
   app.post("/", async (request, reply) => {

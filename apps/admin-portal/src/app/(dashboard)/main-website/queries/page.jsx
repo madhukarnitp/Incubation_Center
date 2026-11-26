@@ -128,7 +128,7 @@ export default function IncubationQueriesPage() {
         {/* Page Header */}
         <PageHeader
           icon={Inbox}
-          title="Queries"
+          title="Inquiries"
           description="Track and process startup incubation applications and contact form submissions."
         />
 
@@ -168,8 +168,8 @@ export default function IncubationQueriesPage() {
 
         {/* Tabular Form Table */}
         <CardWrapper className="p-4 sm:p-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[720px] sm:min-w-full">
+          <div className="overflow-x-auto lg:overflow-visible">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[10px] font-bold uppercase tracking-wider text-slate-500 whitespace-nowrap">
                   <th className="py-3 px-3">Founder / Contact</th>
@@ -285,7 +285,7 @@ export default function IncubationQueriesPage() {
         {/* Full Details Modal */}
         {selectedQuery && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-xl rounded-md bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-5 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-xl max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-5 animate-in zoom-in-95 font-sans">
               {/* Header */}
               <div className="flex items-start justify-between pb-3 border-b border-[#E2E8F0]">
                 <div>

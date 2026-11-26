@@ -164,9 +164,9 @@ export default function IncubationsManagementPage() {
         </div>
 
         {/* Tabular Incubations Table */}
-        <CardWrapper className="p-0 overflow-hidden border-[#E2E8F0] bg-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px] sm:min-w-full">
+        <CardWrapper className="p-0 border-[#E2E8F0] bg-white">
+          <div className="overflow-x-auto lg:overflow-visible">
+            <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC] text-[10px] font-bold uppercase tracking-wider text-slate-600 whitespace-nowrap">
                   <th className="py-3 px-4">Startup Venture & Founder</th>
@@ -279,7 +279,7 @@ export default function IncubationsManagementPage() {
         {/* Incubation Detail Modal */}
         {selectedIncubation && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-lg rounded-lg bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto my-auto rounded-lg bg-white border border-[#E2E8F0] p-6 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
               <div className="flex items-start justify-between pb-3 border-b border-[#E2E8F0]">
                 <div className="flex items-center gap-2">
                   <span className="w-8 h-8 rounded-full bg-purple-100 text-purple-800 flex items-center justify-center font-bold">
@@ -404,7 +404,7 @@ export default function IncubationsManagementPage() {
         {/* Add/Edit Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-lg rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
+            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto my-auto rounded-md bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
               <Card.Header>
                 <Card.Title>{editingItem ? 'Edit Incubation Venture' : 'Add New Incubation Venture'}</Card.Title>
                 <button onClick={() => setIsModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-800 rounded-md hover:bg-slate-100">

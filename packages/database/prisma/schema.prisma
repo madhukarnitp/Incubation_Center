@@ -33,13 +33,7 @@ model User {
   roles               UserRole[]
   teamMemberships     TeamMember[]
   applications        Application[]
-  createdTasks        Task[]                @relation("TaskCreator")
-  assignedTasks       Task[]                @relation("TaskAssignee")
-  taskSubmissions     TaskSubmission[]
   interviews          Interview[]
-  notices             Notice[]
-  queries             Query[]
-  queryResponses      QueryResponse[]
 
   // Induction platform relationships
   studentProfile           StudentProfile?
@@ -49,7 +43,6 @@ model User {
 
   // Event platform relationships
   eventParticipations EventParticipant[]
-  eventStaffRoles     EventStaff[]
   eventScans          EventScan[]
   eventSubmissions    EventSubmission[]
   scanVoteEntries     ResourceScanVoteEntry[]
@@ -66,6 +59,12 @@ model User {
   createdFromCandidate Candidate?           @relation("CandidateLinkedUser")
   createdCandidates   Candidate[]           @relation("CandidateCreatedBy")
   activityLogs        SystemActivityLog[]
+  grantedPermissions  TeamMemberPermission[] @relation("GrantedPermissions")
+  memberPermissions   TeamMemberPermission[]
+  delegatedFrom       PermissionDelegation[] @relation("DelegatedFrom")
+  delegatedTo         PermissionDelegation[] @relation("DelegatedTo")
+  assignedTeamTasks   TeamTask[]             @relation("TeamTaskAssignee")
+  createdTeamTasks    TeamTask[]             @relation("TeamTaskCreator")
 
   @@map("user")
 }
@@ -171,7 +170,7 @@ model Role {
 
   permissions RolePermission[]
   users       UserRole[]
-  teamRoles   TeamRole[]
+  teams       TeamRole[]
 }
 
 model RolePermission {
@@ -229,16 +228,15 @@ model Team {
   order             Int                @default(0)
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now()) @updatedAt
-  members           TeamMember[]
-  permissions       TeamPermission[]
-  roles             TeamRole[]
-  applications      Application[]
-  tasks             Task[]
-  interviewRounds   InterviewRound[]
-  noticeTeams       NoticeTeam[]
-  queries           Query[]
-  inductionAccounts InductionAccount[]
-
+  members              TeamMember[]
+  roles                TeamRole[]
+  permissions          TeamPermission[]
+  applications         Application[]
+  interviewRounds      InterviewRound[]
+  inductionAccounts    InductionAccount[]
+  memberPermissions    TeamMemberPermission[]
+  delegations          PermissionDelegation[]
+  tasks                TeamTask[]
   @@index([type])
 }
 
@@ -266,14 +264,108 @@ model TeamRole {
 
 model TeamMember {
   teamId   String
-  userId   String
+  userId   String @unique
   position String @default("Member")
   order    Int    @default(0)
   team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  memberPermissions TeamMemberPermission[]
+
   @@id([teamId, userId])
   @@index([userId])
+}
+
+// Per-member CRUD permission assignment within a team
+model TeamMemberPermission {
+  id                 String    @id @default(cuid())
+  teamId             String
+  userId             String
+  resource           String    // e.g. "cms_gallery", "cms_notices", "cms_incubations", "cms_events"
+  canView            Boolean   @default(false)
+  canCreate          Boolean   @default(false)
+  canUpdate          Boolean   @default(false)
+  canDelete          Boolean   @default(false)
+  canDelegate        Boolean   @default(false)
+  exceptionalActions String[]  @default([])
+  source             String    @default("DIRECT") // "DIRECT" | "DELEGATION" | "POSITION"
+  grantedById        String
+  grantedAt          DateTime  @default(now())
+  expiresAt          DateTime?
+
+  team       Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedBy  User       @relation("GrantedPermissions", fields: [grantedById], references: [id], onDelete: Cascade)
+  teamMember TeamMember @relation(fields: [teamId, userId], references: [teamId, userId], onDelete: Cascade)
+
+  @@unique([teamId, userId, resource])
+  @@index([teamId])
+  @@index([userId])
+  @@index([grantedById])
+}
+
+// Permission delegation chain: who delegated what to whom within a team
+model PermissionDelegation {
+  id                 String    @id @default(cuid())
+  teamId             String
+  fromUserId         String
+  toUserId           String
+  resource           String
+  canView            Boolean   @default(false)
+  canCreate          Boolean   @default(false)
+  canUpdate          Boolean   @default(false)
+  canDelete          Boolean   @default(false)
+  canDelegate        Boolean   @default(false)
+  exceptionalActions String[]  @default([])
+  expiresAt          DateTime?
+  revokedAt          DateTime?
+  createdAt          DateTime  @default(now())
+
+  team     Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  fromUser User @relation("DelegatedFrom", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser   User @relation("DelegatedTo", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, toUserId])
+  @@index([fromUserId])
+  @@index([toUserId])
+}
+
+enum TeamTaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum TeamTaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model TeamTask {
+  id           String           @id @default(cuid())
+  teamId       String
+  title        String           @db.VarChar(200)
+  description  String?
+  status       TeamTaskStatus   @default(TODO)
+  priority     TeamTaskPriority @default(MEDIUM)
+  dueDate      DateTime?
+  assignedToId String?
+  createdById  String
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  team       Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("TeamTaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User  @relation("TeamTaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([assignedToId])
+  @@index([status])
 }
 
 enum ApplicationStatus {
@@ -319,45 +411,10 @@ model Application {
   team            Team              @relation(fields: [teamId], references: [id])
   currentStatus   ApplicationStatus
   createdAt       DateTime          @default(now())
-  taskSubmissions TaskSubmission[]
   interviews      Interview[]
 
   @@index([candidateId])
   @@index([studentId])
-}
-
-model Task {
-  id              String           @id @default(uuid())
-  teamId          String?
-  team            Team?            @relation(fields: [teamId], references: [id])
-  createdById     String
-  createdBy       User             @relation("TaskCreator", fields: [createdById], references: [id])
-  assignedToId    String?
-  assignedTo      User?            @relation("TaskAssignee", fields: [assignedToId], references: [id])
-  title           String           @db.VarChar(100)
-  description     String?
-  deadline        DateTime?
-  status          String           @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED
-  priority        String           @default("MEDIUM")  // LOW, MEDIUM, HIGH, URGENT
-  maxScore        Int?             @default(100)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @default(now()) @updatedAt
-  userId          String?
-  taskSubmissions TaskSubmission[]
-}
-
-model TaskSubmission {
-  id            String      @id @default(uuid())
-  taskId        String
-  task          Task        @relation(fields: [taskId], references: [id])
-  applicationId String
-  application   Application @relation(fields: [applicationId], references: [id])
-  evaluatedById String?
-  evaluatedBy   User?       @relation(fields: [evaluatedById], references: [id])
-  submissionUrl String
-  score         Int?
-  feedback      String?
-  submittedAt   DateTime    @default(now())
 }
 
 model InterviewRound {
@@ -473,54 +530,6 @@ model InductionAuditLog {
   @@index([timestamp])
 }
 
-model Notice {
-  id          String       @id @default(uuid())
-  postedBy    String
-  posted      User         @relation(fields: [postedBy], references: [id])
-  title       String       @db.VarChar(100)
-  content     String
-  isGlobal    Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  noticeTeams NoticeTeam[]
-}
-
-model NoticeTeam {
-  noticeId String
-  notice   Notice @relation(fields: [noticeId], references: [id])
-  teamId   String
-  team     Team   @relation(fields: [teamId], references: [id])
-
-  @@id([noticeId, teamId])
-}
-
-enum QueryStatus {
-  OPEN
-  RESOLVED
-}
-
-model Query {
-  id             String          @id @default(uuid())
-  studentId      String
-  student        User            @relation(fields: [studentId], references: [id])
-  teamId         String
-  team           Team            @relation(fields: [teamId], references: [id])
-  subject        String          @db.VarChar(100)
-  message        String
-  status         QueryStatus     @default(OPEN)
-  createdAt      DateTime        @default(now())
-  queryResponses QueryResponse[]
-}
-
-model QueryResponse {
-  id         String   @id @default(uuid())
-  queryId    String
-  query      Query    @relation(fields: [queryId], references: [id])
-  responseId String
-  responder  User     @relation(fields: [responseId], references: [id])
-  response   String
-  createdAt  DateTime @default(now())
-}
-
 // ==========================================
 // EVENT PLATFORM
 // ==========================================
@@ -555,15 +564,6 @@ enum CheckpointType {
   CUSTOM
 }
 
-enum EventStaffRole {
-  OWNER
-  ADMIN
-  STAFF
-  JUDGE
-  VIEWER
-}
-
-
 model Event {
   id          String      @id @default(uuid())
   name        String
@@ -583,7 +583,6 @@ model Event {
 
   participants EventParticipant[]
   teams        EventTeam[]
-  staff        EventStaff[]
   checkpoints  EventCheckpoint[]
   resources    EventResource[]
   submissions  EventSubmission[]
@@ -653,24 +652,6 @@ model EventTeamMember {
   team        EventTeam        @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   @@index([teamId])
-}
-
-
-model EventStaff {
-  id        String @id @default(uuid())
-
-  eventId   String
-  userId    String
-
-  role      EventStaffRole
-
-  createdAt DateTime @default(now())
-
-  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([eventId, userId])
-  @@index([userId])
 }
 
 
@@ -965,14 +946,22 @@ model CmsIncubation {
 model CmsEvent {
   id               String   @id @default(cuid())
   title            String
+  tagline          String?
   category         String   @default("Flagship Event")
   date             String
+  startDate        String?
+  endDate          String?
   time             String?
   venue            String?
+  mode             String   @default("In-Person")
   status           String   @default("Upcoming")
   registrationLink String?
   image            String?
   description      String?
+  eligibility      String?
+  highlights       Json?
+  speakers         Json?
+  sponsors         Json?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 

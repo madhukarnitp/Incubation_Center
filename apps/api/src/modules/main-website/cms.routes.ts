@@ -3,12 +3,13 @@ import { CmsPermissions } from "@repo/rbac";
 import { requireAuth } from "../../middleware/auth";
 import { authorize } from "../../middleware/rbac";
 import { permissionService } from "../../rbac";
+import { hasAnyTeamPermission } from "../../middleware/team-rbac";
 import { cmsService } from "./cms.service";
 
 /**
  * Validates whether the user has authorization for a specific CMS section.
  * Checks Super Admin bypass, global CMS permission, section-specific manage permission,
- * and section-specific action permission.
+ * section-specific action permission, and per-member Team CRUD permissions.
  */
 async function verifyCmsSectionAccess(
   userId: string,
@@ -42,7 +43,10 @@ async function verifyCmsSectionAccess(
     return true;
   }
 
-  return false;
+  // Check per-member team CRUD permissions & delegations (Stage 5)
+  const teamResourceKey = `cms_${section}`;
+  const teamAction = action === "read" ? "view" : action;
+  return hasAnyTeamPermission(userId, teamResourceKey, teamAction);
 }
 
 export const cmsRoutes: FastifyPluginAsync = async (app) => {

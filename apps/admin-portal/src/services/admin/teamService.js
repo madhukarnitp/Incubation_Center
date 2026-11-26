@@ -23,6 +23,17 @@ export const TeamService = {
     }
   },
 
+  // Get available users for a team (accessible to Leads/Co-Leads of that team)
+  getAvailableUsers: async (teamId) => {
+    try {
+      const res = await apiClient.get(`/teams/${teamId}/available-users`);
+      return res.users || [];
+    } catch (err) {
+      console.error(`Failed to fetch available users for team ${teamId}:`, err);
+      throw err;
+    }
+  },
+
   // Create team
   createTeam: async (teamData) => {
     try {
@@ -57,14 +68,85 @@ export const TeamService = {
   },
 
   // Add members
-  addMembers: async (teamId, userIds) => {
+  addMembers: async (teamId, userIds, position = 'Member') => {
     try {
-      const res = await apiClient.post(`/teams/${teamId}/members`, { userIds });
+      const res = await apiClient.post(`/teams/${teamId}/members`, { userIds, position });
       return res;
     } catch (err) {
       console.error(`Failed to add members to team ${teamId}:`, err);
       throw err;
     }
+  },
+
+  // Create/upsert new user with full profile + email and add to team
+  createAndAddMember: async (teamId, memberData) => {
+    try {
+      const res = await apiClient.post(`/teams/${teamId}/members/new`, memberData);
+      return res;
+    } catch (err) {
+      console.error(`Failed to create and add member to team ${teamId}:`, err);
+      throw err;
+    }
+  },
+
+  // Update individual system/custom roles for a team member
+  updateMemberRoles: async (teamId, userId, roleIds) => {
+    try {
+      const res = await apiClient.put(`/teams/${teamId}/members/${userId}/roles`, { roleIds });
+      return res;
+    } catch (err) {
+      console.error(`Failed to update roles for member ${userId} in team ${teamId}:`, err);
+      throw err;
+    }
+  },
+
+  // Update roles assigned to the whole team
+  updateTeamRoles: async (teamId, roleIds) => {
+    try {
+      const res = await apiClient.put(`/teams/${teamId}/roles`, { roleIds });
+      return res;
+    } catch (err) {
+      console.error(`Failed to update roles for team ${teamId}:`, err);
+      throw err;
+    }
+  },
+
+  // Get team overview stats
+  getOverview: async () => {
+    const res = await apiClient.get('/teams/overview');
+    return res;
+  },
+
+  // Get team-scoped activity logs
+  getTeamActivity: async (teamId) => {
+    const res = await apiClient.get(`/teams/${teamId}/activity`);
+    return res.logs || [];
+  },
+
+  // Per-member CRUD permissions & delegation
+  getMemberPermissions: async (teamId, userId) => {
+    const res = await apiClient.get(`/teams/${teamId}/member-permissions/${userId}`);
+    return res;
+  },
+
+  saveMemberPermissions: async (teamId, userId, permissions) => {
+    const res = await apiClient.put(`/teams/${teamId}/member-permissions/${userId}`, {
+      permissions,
+    });
+    return res;
+  },
+
+  delegateMemberPermission: async (teamId, userId, payload) => {
+    const res = await apiClient.post(
+      `/teams/${teamId}/member-permissions/${userId}/delegate`,
+      payload
+    );
+    return res;
+  },
+
+  revokeMemberPermissions: async (teamId, userId) => {
+    const res = await apiClient.delete(`/teams/${teamId}/member-permissions/${userId}`);
+    return res;
   },
 
   // Update member position inside team

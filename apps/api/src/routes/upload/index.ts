@@ -5,6 +5,21 @@ import { requireAuth } from "../../middleware/auth";
 export const uploadRoutes: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", requireAuth);
 
+  app.get("/status", async (_request, reply) => {
+    return reply.send({
+      configured: cloudinaryService.isConfigured,
+    });
+  });
+
+  app.delete("/", async (request, reply) => {
+    const body = (request.body || {}) as { publicId?: string };
+    if (!body.publicId) {
+      return reply.status(400).send({ success: false, message: "publicId is required" });
+    }
+    const deleted = await cloudinaryService.deleteAsset(body.publicId);
+    return reply.send({ success: deleted });
+  });
+
   app.post(
     "/",
     {

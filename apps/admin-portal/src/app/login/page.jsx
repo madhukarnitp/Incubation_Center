@@ -21,17 +21,26 @@ function LoginContent() {
         lower.includes('not_found') ||
         lower.includes('not found') ||
         lower.includes('not_registered') ||
-        lower.includes('unregistered')
+        lower.includes('unregistered') ||
+        lower.includes('unable_to_create_user') ||
+        lower.includes('signup_disabled')
       ) {
-        setErrorMessage('Email not registered. Please contact the administrator.');
+        setErrorMessage(
+          'Unauthorized access: User not found. Your email is not registered in the system. Please contact an administrator.'
+        );
       } else if (
         lower.includes('forbidden') ||
         lower.includes('domain') ||
-        lower.includes('access_denied')
+        lower.includes('access_denied') ||
+        lower.includes('suspended')
       ) {
-        setErrorMessage('Access denied. Your account is not authorized or suspended.');
+        setErrorMessage(
+          'Unauthorized access: Your account is suspended or not authorized to sign in.'
+        );
       } else {
-        setErrorMessage('Sign-in failed. Please try again.');
+        setErrorMessage(
+          'Unauthorized access: Sign-in failed. Please ensure your email is registered and try again.'
+        );
       }
     }
   }, [searchParams]);

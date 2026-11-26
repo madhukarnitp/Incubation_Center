@@ -36,6 +36,7 @@ export const AlertCircle = createIcon('AlertCircle', () => (<><circle cx="12" cy
 export const ArrowRight = createIcon('ArrowRight', () => (<><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></>));
 export const ArrowUpRight = createIcon('ArrowUpRight', () => (<><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></>));
 export const Award = createIcon('Award', () => (<><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></>));
+export const Ban = createIcon('Ban', () => (<><circle cx="12" cy="12" r="10" /><path d="m4.9 4.9 14.2 14.2" /></>));
 export const BarChart3 = createIcon('BarChart3', () => (<><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></>));
 export const Bell = createIcon('Bell', () => (<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>));
 export const Brain = createIcon('Brain', () => (<><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z" /><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z" /></>));

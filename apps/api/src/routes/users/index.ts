@@ -6,12 +6,14 @@ import { isAllowedGoogleEmail } from "@repo/auth/server";
 import { requireAuth } from "../../middleware/auth";
 import { authorize } from "../../middleware/rbac";
 import { permissionService, roleService } from "../../rbac";
+import { getEffectiveMemberPermissions, getPositionRank } from "../../middleware/team-rbac";
 
 const createUserSchema = z.object({
   name: z.string().min(1, "Name is required").trim(),
   email: z.string().email("Valid email is required").trim().toLowerCase(),
   phoneNumber: z.string().min(6).optional(),
   roleIds: z.array(z.string()).optional(),
+  teamId: z.string().nullable().optional(),
   teamIds: z.array(z.string()).optional(),
 });
 
@@ -20,6 +22,7 @@ const updateUserSchema = z.object({
   email: z.string().email().optional(),
   phoneNumber: z.string().min(6).optional(),
   roleIds: z.array(z.string()).optional(),
+  teamId: z.string().nullable().optional(),
   teamIds: z.array(z.string()).optional(),
 });
 
@@ -71,6 +74,7 @@ export async function usersRoutes(app: FastifyInstance) {
         include: {
           teamMemberships: {
             select: {
+              position: true,
               team: {
                 select: {
                   id: true,
@@ -87,10 +91,34 @@ export async function usersRoutes(app: FastifyInstance) {
     ]);
 
     const user = freshUser || sessionUser;
-    const teams = (freshUser?.teamMemberships || []).map((tm) => tm.team);
+    const teams = (freshUser?.teamMemberships || []).map((tm) => ({
+      ...tm.team,
+      position: tm.position,
+    }));
+    const isTeamAdmin = teams.some((t) => getPositionRank(t.position) >= 2);
     const primaryRole = authorization.isSuperAdmin
       ? "Super Admin"
       : roles[0]?.name || "Member";
+
+    // Merge effective per-member team CRUD & delegated permissions into permissions list
+    const permKeys = new Set(authorization.permissions.map((p) => p.key));
+    const teamPermissionsMap: Record<string, any[]> = {};
+    for (const tm of teams) {
+      const effective = await getEffectiveMemberPermissions(user.id, tm.id);
+      teamPermissionsMap[tm.id] = effective;
+      for (const eff of effective) {
+        if (eff.canView) permKeys.add(`${eff.resource}:read:any`);
+        if (eff.canCreate) permKeys.add(`${eff.resource}:create:any`);
+        if (eff.canUpdate) permKeys.add(`${eff.resource}:update:any`);
+        if (eff.canDelete) permKeys.add(`${eff.resource}:delete:any`);
+        if (eff.canView && eff.canCreate && eff.canUpdate && eff.canDelete) {
+          permKeys.add(`${eff.resource}:manage:any`);
+        }
+        for (const exc of eff.exceptionalActions || []) {
+          permKeys.add(`${eff.resource}:${exc}:any`);
+        }
+      }
+    }
 
     return reply.send({
       user: {
@@ -101,10 +129,10 @@ export async function usersRoutes(app: FastifyInstance) {
       },
       roles,
       teams,
-      permissions: authorization.permissions.map(
-        (permission) => permission.key,
-      ),
+      permissions: Array.from(permKeys),
+      teamPermissions: teamPermissionsMap,
       isSuperAdmin: authorization.isSuperAdmin,
+      isTeamAdmin,
     });
   });
 
@@ -298,7 +326,7 @@ export async function usersRoutes(app: FastifyInstance) {
         return reply.status(400).send({ error: body.error.flatten() });
       }
 
-      const { name, email, phoneNumber, roleIds, teamIds } = body.data;
+      const { name, email, phoneNumber, roleIds, teamId, teamIds } = body.data;
 
       // Policy: Validate email format
       if (!isAllowedGoogleEmail(email)) {
@@ -361,15 +389,15 @@ export async function usersRoutes(app: FastifyInstance) {
         }
       }
 
-      if (teamIds && teamIds.length > 0) {
-        for (const teamId of teamIds) {
-          await prisma.teamMember.create({
-            data: {
-              userId: user.id,
-              teamId,
-            },
-          });
-        }
+      const targetTeamId = teamId !== undefined ? teamId : teamIds?.[0];
+      if (targetTeamId) {
+        await prisma.teamMember.deleteMany({ where: { userId: user.id } });
+        await prisma.teamMember.create({
+          data: {
+            userId: user.id,
+            teamId: targetTeamId,
+          },
+        });
       }
 
       const createdRoles = await roleService.getUserRoles(user.id);
@@ -432,6 +460,12 @@ export async function usersRoutes(app: FastifyInstance) {
             phoneNumberVerified: true,
             emailVerified: true,
             image: true,
+            department: true,
+            post: true,
+            bio: true,
+            linkedin: true,
+            github: true,
+            instagram: true,
             creationSource: true,
             banned: true,
             bannedAt: true,
@@ -447,14 +481,21 @@ export async function usersRoutes(app: FastifyInstance) {
             },
             teamMemberships: {
               select: {
+                position: true,
                 team: {
-                  select: { id: true, name: true },
+                  select: {
+                    id: true,
+                    name: true,
+                    type: true,
+                    roles: {
+                      select: {
+                        role: {
+                          select: { id: true, name: true },
+                        },
+                      },
+                    },
+                  },
                 },
-              },
-            },
-            _count: {
-              select: {
-                assignedTasks: true,
               },
             },
           },
@@ -462,11 +503,24 @@ export async function usersRoutes(app: FastifyInstance) {
         prisma.user.count({ where }),
       ]);
 
-      const formatted = users.map((u) => ({
-        ...u,
-        roles: u.roles.map((r) => r.role),
-        teams: u.teamMemberships.map((tm) => tm.team),
-      }));
+      const formatted = users.map((u) => {
+        const primaryMembership = u.teamMemberships[0] || null;
+        const team = primaryMembership
+          ? {
+              id: primaryMembership.team.id,
+              name: primaryMembership.team.name,
+              type: primaryMembership.team.type,
+              position: primaryMembership.position,
+              roles: primaryMembership.team.roles.map((tr) => tr.role),
+            }
+          : null;
+        return {
+          ...u,
+          roles: u.roles.map((r) => r.role),
+          team,
+          teams: team ? [team] : [],
+        };
+      });
 
       return reply.send({
         users: formatted,
@@ -647,16 +701,14 @@ export async function usersRoutes(app: FastifyInstance) {
         }
       }
 
-      if (data.data.teamIds !== undefined) {
+      if (data.data.teamId !== undefined || data.data.teamIds !== undefined) {
         await prisma.teamMember.deleteMany({ where: { userId: id } });
-        if (data.data.teamIds.length > 0) {
-          for (const teamId of data.data.teamIds) {
-            await prisma.teamMember.upsert({
-              where: { teamId_userId: { teamId, userId: id } },
-              create: { teamId, userId: id },
-              update: {},
-            });
-          }
+        const targetTeamId =
+          data.data.teamId !== undefined ? data.data.teamId : data.data.teamIds?.[0];
+        if (targetTeamId) {
+          await prisma.teamMember.create({
+            data: { teamId: targetTeamId, userId: id },
+          });
         }
       }
 

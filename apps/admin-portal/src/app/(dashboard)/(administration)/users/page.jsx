@@ -5,68 +5,69 @@ import { useAuth } from '@/context/AuthContext';
 import { PERMISSIONS } from '@/constants/rbac';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import DataTable from '@/components/Common/DataTable';
-import CardWrapper from '@/components/Common/CardWrapper';
+import Toast from '@/components/Common/Toast';
+import TableActionButton from '@/components/Common/TableActionButton';
 import PageHeader from '@/components/common/PageHeader';
-import { Button, Input, Badge, Card } from '@/components/ui';
+import { Button, Input, Badge, ConfirmModal } from '@/components/ui';
 import apiClient from '@/lib/api';
 import TeamService from '@/services/admin/teamService';
 import {
   Shield,
   UserPlus,
+  UserCheck,
+  Ban,
   Edit2,
+  Trash2,
   CheckCircle2,
   X,
-  XCircle,
   Save,
   Loader2,
   AlertCircle,
+  Users2,
 } from '@/components/icons';
 
-const ROLE_COLORS = {
-  'Super Admin': { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
-  'Admin': { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-[#1E40AF]' },
-  'Developer': { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700' },
-  'Member': { bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700' },
-};
-
 export default function UserRoleManagementPage() {
-  const { currentUser, isSuperAdmin, canAddUser } = useAuth();
+  const { currentUser, canAddUser } = useAuth();
   const [users, setUsers] = useState([]);
-  const [availableRoles, setAvailableRoles] = useState([]);
   const [availableTeams, setAvailableTeams] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Add / Edit Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
-  const [feedbackMessage, setFeedbackMessage] = useState({ type: '', text: '' });
+
+  // Detailed View Modal
+  const [detailUser, setDetailUser] = useState(null);
+
+  // Confirm Modals
+  const [toast, setToast] = useState(null);
+  const [banConfirmUser, setBanConfirmUser] = useState(null);
+  const [deleteConfirmUser, setDeleteConfirmUser] = useState(null);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phoneNumber: '',
-    roleId: '',
-    teamIds: [],
+    teamId: '',
   });
 
-  // Load users, roles, and teams from centralized Fastify API
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [usersRes, rolesRes, teamsRes] = await Promise.all([
+      const [usersRes, teamsRes] = await Promise.all([
         apiClient.get('/users?limit=100'),
-        apiClient.get('/roles'),
         TeamService.getTeams().catch(() => []),
       ]);
 
       setUsers(usersRes?.users || []);
-      setAvailableRoles(rolesRes?.roles || []);
       setAvailableTeams(teamsRes || []);
     } catch (err) {
       console.error('Failed to load user management data:', err);
-      setFeedbackMessage({
+      setToast({
         type: 'error',
-        text: 'Failed to load user data. Please ensure you have sufficient permissions.',
+        message: 'Failed to load user data. Please ensure you have sufficient permissions.',
       });
     } finally {
       setIsLoading(false);
@@ -80,14 +81,11 @@ export default function UserRoleManagementPage() {
   const handleOpenAdd = () => {
     setEditingUser(null);
     setModalError('');
-    // Default to 'Member' or first non-superadmin role
-    const defaultRole = availableRoles.find((r) => r.name === 'Member') || availableRoles[0];
     setFormData({
       name: '',
       email: '',
       phoneNumber: '',
-      roleId: defaultRole?.id || '',
-      teamIds: [],
+      teamId: '',
     });
     setIsModalOpen(true);
   };
@@ -95,28 +93,14 @@ export default function UserRoleManagementPage() {
   const handleOpenEdit = (user) => {
     setEditingUser(user);
     setModalError('');
-    const userRoleId = user.roles?.[0]?.id || '';
-    const userTeamIds = (user.teams || []).map((t) => t.id);
+    const singleTeamId = user.team?.id || user.teams?.[0]?.id || '';
     setFormData({
-      name: user.name,
-      email: user.email,
+      name: user.name || '',
+      email: user.email || '',
       phoneNumber: user.phoneNumber || '',
-      roleId: userRoleId,
-      teamIds: userTeamIds,
+      teamId: singleTeamId,
     });
     setIsModalOpen(true);
-  };
-
-  const toggleTeamSelection = (teamId) => {
-    setFormData((prev) => {
-      const nextTeams = new Set(prev.teamIds);
-      if (nextTeams.has(teamId)) {
-        nextTeams.delete(teamId);
-      } else {
-        nextTeams.add(teamId);
-      }
-      return { ...prev, teamIds: Array.from(nextTeams) };
-    });
   };
 
   const handleSave = async (e) => {
@@ -125,27 +109,23 @@ export default function UserRoleManagementPage() {
     setModalLoading(true);
 
     try {
+      const payload = {
+        name: formData.name.trim(),
+        phoneNumber: formData.phoneNumber.trim() || undefined,
+        teamId: formData.teamId || null,
+      };
+
       if (editingUser) {
-        // Update user
-        await apiClient.put(`/users/${editingUser.id}`, {
-          name: formData.name,
-          phoneNumber: formData.phoneNumber || undefined,
-          roleIds: formData.roleId ? [formData.roleId] : [],
-          teamIds: formData.teamIds,
-        });
-        setFeedbackMessage({ type: 'success', text: `Updated ${formData.name} successfully.` });
+        await apiClient.put(`/users/${editingUser.id}`, payload);
+        setToast({ type: 'success', message: `Updated ${formData.name} successfully.` });
       } else {
-        // Create pre-registered user (Super Admin / Developer only)
         await apiClient.post('/users', {
-          name: formData.name,
-          email: formData.email,
-          phoneNumber: formData.phoneNumber || undefined,
-          roleIds: formData.roleId ? [formData.roleId] : [],
-          teamIds: formData.teamIds,
+          ...payload,
+          email: formData.email.trim(),
         });
-        setFeedbackMessage({
+        setToast({
           type: 'success',
-          text: `User ${formData.email} registered. They may now sign in using Google OAuth.`,
+          message: `User ${formData.email} registered. They may now sign in using Google OAuth.`,
         });
       }
 
@@ -159,28 +139,50 @@ export default function UserRoleManagementPage() {
     }
   };
 
-  const handleToggleBan = async (user) => {
-    const action = user.banned ? 'unban' : 'ban';
-    if (!window.confirm(`Are you sure you want to ${action} user "${user.name}"?`)) return;
+  const confirmToggleBan = async () => {
+    const user = banConfirmUser;
+    if (!user) return;
+    setBanConfirmUser(null);
 
     try {
       if (user.banned) {
         await apiClient.delete(`/users/${user.id}/ban`);
-        setFeedbackMessage({ type: 'success', text: `Unbanned ${user.name}.` });
+        setToast({ type: 'success', message: `Unbanned ${user.name || user.email}.` });
       } else {
         await apiClient.post(`/users/${user.id}/ban`, { reason: 'Suspended by admin' });
-        setFeedbackMessage({ type: 'success', text: `Banned ${user.name}.` });
+        setToast({ type: 'success', message: `Banned ${user.name || user.email}.` });
       }
       await loadData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Failed to update ban status');
+      setToast({
+        type: 'error',
+        message: err.response?.data?.error || 'Failed to update ban status',
+      });
+    }
+  };
+
+  const confirmDeleteUser = async () => {
+    const user = deleteConfirmUser;
+    if (!user) return;
+    setDeleteConfirmUser(null);
+
+    try {
+      await apiClient.delete(`/users/${user.id}`);
+      setToast({ type: 'success', message: `Deleted ${user.name || user.email}.` });
+      if (detailUser?.id === user.id) setDetailUser(null);
+      await loadData();
+    } catch (err) {
+      setToast({
+        type: 'error',
+        message: err.response?.data?.error || 'Failed to delete user',
+      });
     }
   };
 
   const columns = [
     {
       key: 'name',
-      header: 'User',
+      header: 'Name',
       sortable: true,
       render: (user) => {
         const isCurrent = user.id === currentUser?.id;
@@ -190,98 +192,58 @@ export default function UserRoleManagementPage() {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={user.image}
-                alt={user.name}
+                alt={user.name || 'User'}
                 className="w-8 h-8 rounded-full object-cover border border-[#E2E8F0] shrink-0"
               />
             ) : (
               <span className="w-8 h-8 rounded-full bg-[#1E40AF] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                {user.name?.[0] || 'U'}
+                {user.name?.[0] || user.email?.[0] || 'U'}
               </span>
             )}
-            <div>
-              <div className="font-semibold text-slate-900 flex items-center gap-1.5">
-                <span>{user.name}</span>
-                {isCurrent && <Badge variant="blue">You</Badge>}
-              </div>
-              <span className="text-[11px] text-slate-500">{user.email}</span>
+            <div className="font-semibold text-slate-900 flex items-center gap-1.5">
+              <span>{user.name || 'Unnamed'}</span>
+              {isCurrent && <Badge variant="blue" size="xs">You</Badge>}
             </div>
           </div>
         );
       },
     },
     {
-      key: 'role',
-      header: 'Assigned Role',
+      key: 'email',
+      header: 'Email',
       sortable: true,
-      render: (user) => {
-        const primaryRole = user.roles?.[0]?.name || 'Member';
-        const roleStyle =
-          primaryRole === 'Super Admin'
-            ? 'purple'
-            : primaryRole === 'Developer'
-            ? 'emerald'
-            : primaryRole === 'Admin'
-            ? 'blue'
-            : 'slate';
-
-        return (
-          <Badge variant={roleStyle} showDot>
-            {primaryRole}
-          </Badge>
-        );
-      },
+      render: (user) => (
+        <span className="text-xs text-slate-600">{user.email}</span>
+      ),
     },
     {
-      key: 'teams',
-      header: 'Assigned Teams',
+      key: 'team',
+      header: 'Team',
       sortable: false,
       render: (user) => {
-        const teams = user.teams || [];
-        if (teams.length === 0) {
-          return <span className="text-[11px] text-slate-400 italic">None</span>;
+        const team = user.team || user.teams?.[0];
+        if (!team) {
+          return <span className="text-[11px] text-slate-400 italic">Unassigned</span>;
         }
         return (
-          <div className="flex flex-wrap gap-1">
-            {teams.map((t) => (
-              <Badge key={t.id} variant="blue" size="xs">
-                {t.name}
-              </Badge>
-            ))}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'source',
-      header: 'Account Source',
-      sortable: true,
-      render: (user) => {
-        const isInduction = user.creationSource === 'induction';
-        return (
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
-              isInduction
-                ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                : 'bg-slate-50 text-slate-700 border border-slate-200'
-            }`}
-          >
-            {isInduction ? 'Induction Selection' : 'Manual Admin'}
-          </span>
+          <Badge variant="blue" size="xs">
+            {team.name}
+          </Badge>
         );
       },
     },
     {
       key: 'status',
-      header: 'Account Status',
+      header: 'Status',
       sortable: true,
       render: (user) =>
         user.banned ? (
-          <Badge variant="rose" icon={XCircle}>
+          <Badge variant="rose" icon={Ban}>
             Suspended
           </Badge>
         ) : (
           <Badge variant="emerald" icon={CheckCircle2}>
-            Registered
+            Active
           </Badge>
         ),
     },
@@ -289,27 +251,34 @@ export default function UserRoleManagementPage() {
       key: 'actions',
       header: 'Actions',
       sortable: false,
-      className: 'text-right',
+      className: 'text-center',
       render: (user) => {
         const isCurrent = user.id === currentUser?.id;
         return (
-          <div className="flex items-center justify-end gap-1.5">
-            <Button
-              variant="outline"
-              size="xs"
+          <div
+            className="flex items-center justify-center gap-1.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <TableActionButton
               icon={Edit2}
+              label="Edit"
               onClick={() => handleOpenEdit(user)}
-            >
-              Edit Role
-            </Button>
+            />
             {!isCurrent && (
-              <Button
-                variant={user.banned ? 'outline' : 'danger'}
-                size="xs"
-                onClick={() => handleToggleBan(user)}
-              >
-                {user.banned ? 'Unban' : 'Ban'}
-              </Button>
+              <>
+                <TableActionButton
+                  icon={user.banned ? UserCheck : Ban}
+                  label={user.banned ? 'Unban' : 'Ban'}
+                  tone={user.banned ? 'success' : 'warning'}
+                  onClick={() => setBanConfirmUser(user)}
+                />
+                <TableActionButton
+                  icon={Trash2}
+                  label="Delete"
+                  tone="danger"
+                  onClick={() => setDeleteConfirmUser(user)}
+                />
+              </>
             )}
           </div>
         );
@@ -320,71 +289,376 @@ export default function UserRoleManagementPage() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.MANAGE_USERS}>
       <div className="space-y-5 animate-in fade-in duration-200">
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
         {/* Page Header */}
         <PageHeader
           icon={Shield}
-          title="Team Members & System User Directory"
-          description="Authoritative user management for all team members, staff, and inducted members. Google OAuth sign-in."
-          actionText={canAddUser ? 'Add Team Member' : undefined}
+          title="Users"
+          description="Click any user to view their team, personal roles, and account source. Each user belongs to at most one team."
+          actionText={canAddUser ? 'Add User' : undefined}
           actionIcon={canAddUser ? UserPlus : undefined}
           onAction={canAddUser ? handleOpenAdd : undefined}
         />
 
-        {feedbackMessage.text && (
-          <div
-            className={`p-3.5 rounded-xl border text-xs flex items-center justify-between ${
-              feedbackMessage.type === 'error'
-                ? 'bg-red-50 border-red-200 text-red-700'
-                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-            }`}
-          >
-            <span>{feedbackMessage.text}</span>
-            <button
-              onClick={() => setFeedbackMessage({ type: '', text: '' })}
-              className="text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+        {/* User Data Table */}
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-500 bg-white rounded-md border border-[#E2E8F0] shadow-xs flex flex-col items-center justify-center gap-2">
+            <Loader2 className="w-6 h-6 animate-spin text-[#1E40AF]" />
+            <p className="text-xs">Loading registered users...</p>
+          </div>
+        ) : (
+          <DataTable
+            data={users}
+            columns={columns}
+            searchPlaceholder="Search by name or email..."
+            searchKeys={['name', 'email']}
+            defaultPageSize={10}
+            pageSizeOptions={[10, 25, 50]}
+            onRowClick={(user) => setDetailUser(user)}
+            emptyMessage="No registered users found."
+          />
+        )}
+
+        {/* Modal: Detailed User View */}
+        {detailUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in zoom-in-95 font-sans">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0">
+                  {detailUser.image ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={detailUser.image}
+                      alt={detailUser.name || 'User'}
+                      className="w-11 h-11 rounded-full object-cover border border-slate-200 shrink-0"
+                    />
+                  ) : (
+                    <span className="w-11 h-11 rounded-full bg-[#1E40AF] text-white flex items-center justify-center font-bold text-base shrink-0">
+                      {detailUser.name?.[0] || detailUser.email?.[0] || 'U'}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-sm font-bold text-slate-900 truncate">
+                        {detailUser.name || 'Unnamed User'}
+                      </h3>
+                      {detailUser.banned ? (
+                        <Badge variant="rose" size="xs" icon={Ban}>
+                          Suspended
+                        </Badge>
+                      ) : (
+                        <Badge variant="emerald" size="xs" icon={CheckCircle2}>
+                          Active
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 truncate">{detailUser.email}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDetailUser(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 cursor-pointer shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+                {/* Suspension Alert if Banned */}
+                {detailUser.banned && (
+                  <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5">
+                    <Ban className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+                    <div>
+                      <div className="font-bold">Account Suspended</div>
+                      <div className="text-[11px] text-rose-700 mt-0.5">
+                        {detailUser.bannedReason || 'Suspended by administrator'}
+                        {detailUser.bannedAt
+                          ? ` · ${new Date(detailUser.bannedAt).toLocaleDateString()}`
+                          : ''}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Profile & Account Details Grid */}
+                <div>
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Profile &amp; Account Information
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl border border-[#E2E8F0] bg-slate-50/50">
+                      <div className="text-[11px] font-semibold text-slate-500">Email</div>
+                      <div className="font-semibold text-slate-900 mt-0.5 break-all">
+                        {detailUser.email}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl border border-[#E2E8F0] bg-slate-50/50">
+                      <div className="text-[11px] font-semibold text-slate-500">Phone Number</div>
+                      <div className="font-semibold text-slate-900 mt-0.5">
+                        {detailUser.phoneNumber || (
+                          <span className="text-slate-400 font-normal italic">Not provided</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl border border-[#E2E8F0] bg-slate-50/50">
+                      <div className="text-[11px] font-semibold text-slate-500">
+                        Department &amp; Post
+                      </div>
+                      <div className="font-semibold text-slate-900 mt-0.5">
+                        {[detailUser.department, detailUser.post].filter(Boolean).join(' · ') || (
+                          <span className="text-slate-400 font-normal italic">Not specified</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl border border-[#E2E8F0] bg-slate-50/50">
+                      <div className="text-[11px] font-semibold text-slate-500">
+                        Account Source &amp; Joined
+                      </div>
+                      <div className="font-semibold text-slate-900 mt-0.5">
+                        {detailUser.creationSource === 'induction'
+                          ? 'Induction Selection'
+                          : 'Manual Admin'}
+                        {detailUser.createdAt
+                          ? ` · ${new Date(detailUser.createdAt).toLocaleDateString()}`
+                          : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bio & Social Links (if present) */}
+                {(detailUser.bio ||
+                  detailUser.linkedin ||
+                  detailUser.github ||
+                  detailUser.instagram) && (
+                  <div className="p-4 rounded-xl border border-[#E2E8F0] bg-white space-y-2.5">
+                    {detailUser.bio && (
+                      <div>
+                        <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                          Bio
+                        </div>
+                        <p className="text-slate-700 leading-relaxed">{detailUser.bio}</p>
+                      </div>
+                    )}
+                    {(detailUser.linkedin || detailUser.github || detailUser.instagram) && (
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {detailUser.linkedin && (
+                          <a
+                            href={detailUser.linkedin}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-blue-50 text-[11px] font-semibold text-[#1E40AF]"
+                          >
+                            LinkedIn
+                          </a>
+                        )}
+                        {detailUser.github && (
+                          <a
+                            href={detailUser.github}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-[11px] font-semibold text-slate-800"
+                          >
+                            GitHub
+                          </a>
+                        )}
+                        {detailUser.instagram && (
+                          <a
+                            href={detailUser.instagram}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-md border border-slate-200 bg-slate-50 hover:bg-rose-50 text-[11px] font-semibold text-rose-700"
+                          >
+                            Instagram
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Team & Roles Section */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Assigned Team */}
+                  <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Users2 className="w-3.5 h-3.5 text-[#1E40AF]" />
+                        Team
+                      </span>
+                      {detailUser.team?.position && (
+                        <Badge variant="blue" size="xs">
+                          {detailUser.team.position}
+                        </Badge>
+                      )}
+                    </div>
+                    {detailUser.team ? (
+                      <div className="space-y-2">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {detailUser.team.name}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-[11px] text-slate-500 mr-1">Team Roles:</span>
+                          {(detailUser.team.roles || []).length > 0 ? (
+                            detailUser.team.roles.map((r) => (
+                              <Badge key={r.id} variant="purple" size="xs">
+                                {r.name}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-[11px] text-slate-400 italic">None</span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-slate-400 italic">Not assigned to any team.</p>
+                    )}
+                  </div>
+
+                  {/* Roles Assigned (Team Role + Additional Roles) */}
+                  <div className="p-4 rounded-xl border border-[#E2E8F0] bg-white space-y-2.5">
+                    <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-emerald-700" />
+                      Roles Assigned
+                    </span>
+                    {(detailUser.team?.roles || []).length === 0 &&
+                    (detailUser.roles || []).length === 0 ? (
+                      <p className="text-slate-400 italic">No roles assigned.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(detailUser.team?.roles || []).length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              Team:
+                            </span>
+                            {detailUser.team.roles.map((r) => (
+                              <Badge key={`team-${r.id}`} variant="purple" size="xs">
+                                {r.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {(detailUser.roles || []).length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] font-semibold text-slate-500">
+                              Additional:
+                            </span>
+                            {detailUser.roles.map((r) => (
+                              <Badge key={`add-${r.id}`} variant="emerald" size="xs">
+                                {r.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-3.5 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {detailUser.id !== currentUser?.id && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        icon={detailUser.banned ? UserCheck : Ban}
+                        className={
+                          detailUser.banned
+                            ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50'
+                            : 'text-amber-600 border-amber-200 hover:bg-amber-50'
+                        }
+                        onClick={() => {
+                          const target = detailUser;
+                          setDetailUser(null);
+                          setBanConfirmUser(target);
+                        }}
+                      >
+                        {detailUser.banned ? 'Unban' : 'Ban'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        icon={Trash2}
+                        className="text-rose-600 border-rose-200 hover:bg-rose-50"
+                        onClick={() => {
+                          const target = detailUser;
+                          setDetailUser(null);
+                          setDeleteConfirmUser(target);
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDetailUser(null)}
+                  >
+                    Close
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    icon={Edit2}
+                    onClick={() => {
+                      const target = detailUser;
+                      setDetailUser(null);
+                      handleOpenEdit(target);
+                    }}
+                  >
+                    Edit User
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* User Data Table */}
-        <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-xs">
-          {isLoading ? (
-            <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
-              <Loader2 className="w-6 h-6 animate-spin text-[#1E40AF]" />
-              <p className="text-xs">Loading registered users...</p>
-            </div>
-          ) : (
-            <DataTable
-              data={users}
-              columns={columns}
-              searchPlaceholder="Search by name, email or role..."
-              searchKeys={['name', 'email']}
-              defaultPageSize={10}
-              pageSizeOptions={[10, 25, 50]}
-              emptyMessage="No registered users found."
-            />
-          )}
-        </div>
-
-        {/* Modal: Pre-Register or Edit User */}
+        {/* Modal: Add or Edit User */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-in fade-in">
-            <div className="w-full max-w-lg rounded-2xl bg-white border border-[#E2E8F0] p-5 shadow-xl space-y-4 animate-in zoom-in-95 font-sans">
-              <Card.Header>
-                <Card.Title>
-                  {editingUser
-                    ? `Edit Access: ${editingUser.name}`
-                    : 'Pre-Register User for Google Sign-in'}
-                </Card.Title>
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-xs animate-in fade-in duration-150">
+            <div className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl bg-white border border-slate-200 shadow-xl overflow-hidden animate-in zoom-in-95 font-sans">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-lg bg-blue-50 text-[#1E40AF] flex items-center justify-center">
+                    <UserPlus className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      {editingUser ? 'Edit User' : 'Add User'}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {editingUser
+                        ? 'Update user details, assigned team, and additional roles.'
+                        : 'Pre-register a user for Google sign-in and assign their team and additional roles.'}
+                    </p>
+                  </div>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-800 rounded-md hover:bg-slate-100 transition-colors"
+                  className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100 transition-colors cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
-              </Card.Header>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
               {modalError && (
                 <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs flex items-start gap-2">
@@ -393,7 +667,7 @@ export default function UserRoleManagementPage() {
                 </div>
               )}
 
-              <form onSubmit={handleSave} className="space-y-3 text-xs">
+              <form onSubmit={handleSave} className="space-y-4 text-xs">
                 <div>
                   <Input
                     label="Full Name *"
@@ -414,11 +688,6 @@ export default function UserRoleManagementPage() {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     placeholder="user@gmail.com or user@nitp.ac.in"
                   />
-                  {!editingUser && (
-                    <p className="mt-1 text-[11px] text-slate-500">
-                      Must be a registered Google email address. Open self-registration is blocked.
-                    </p>
-                  )}
                 </div>
 
                 <div>
@@ -430,146 +699,26 @@ export default function UserRoleManagementPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1.5">
-                    Assign System / Custom Role *
+                {/* Single Team Assignment */}
+                <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                  <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Team
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {availableRoles
-                      .filter((r) => isSuperAdmin || r.name !== 'Super Admin')
-                      .map((role) => {
-                        const isSelected = formData.roleId === role.id;
-                        const roleColor = ROLE_COLORS[role.name] || {
-                          bg: 'bg-amber-50',
-                          border: 'border-amber-200',
-                          text: 'text-amber-800',
-                        };
-
-                        return (
-                          <button
-                            key={role.id}
-                            type="button"
-                            onClick={() => setFormData({ ...formData, roleId: role.id })}
-                            className={`p-2.5 rounded-xl border text-left font-bold text-xs transition-all cursor-pointer flex items-center justify-between ${
-                              isSelected
-                                ? `${roleColor.bg} ${roleColor.border} ${roleColor.text} ring-2 ring-[#1E40AF]/20`
-                                : 'bg-white border-[#E2E8F0] text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className="min-w-0">
-                              <span className="block truncate">{role.name}</span>
-                              {role.description && (
-                                <span className="block text-[10px] font-normal text-slate-400 truncate">
-                                  {role.description}
-                                </span>
-                              )}
-                            </div>
-                            {isSelected && <span className="text-[#1E40AF] font-bold ml-1">✓</span>}
-                          </button>
-                        );
-                      })}
-                  </div>
-
-                  {/* Live Permissions Scope Breakdown for Selected Role */}
-                  {(() => {
-                    const selectedRole = availableRoles.find((r) => r.id === formData.roleId);
-                    if (!selectedRole) return null;
-
-                    const isSuper = selectedRole.name === 'Super Admin';
-                    const perms = (selectedRole.permissions || []).map((p) =>
-                      typeof p === 'string' ? p : p.key || `${p.resource}:${p.action}:${p.scope}`
-                    );
-
-                    const hasCms = isSuper || perms.some((k) => k.startsWith('cms:') || k.includes('manage:notices') || k.includes('manage:events'));
-                    const hasUser = isSuper || perms.some((k) => k.startsWith('user:'));
-                    const hasEvent = isSuper || perms.some((k) => k.startsWith('event:'));
-                    const hasInduction = isSuper || perms.some((k) => k.startsWith('induction:'));
-                    const hasSettings = isSuper || perms.some((k) => k.startsWith('settings:') || k.startsWith('role:'));
-
-                    return (
-                      <div className="mt-3 p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-                        <p className="font-bold text-[11px] text-slate-700 uppercase tracking-wide">
-                          Control Scope for Role: {selectedRole.name}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-                          <div className="flex items-center gap-1.5">
-                            <span className={hasCms ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
-                              {hasCms ? '✓' : '×'} 🌐 Main Website Control
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className={hasUser ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
-                              {hasUser ? '✓' : '×'} 👥 Members Control
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className={hasEvent ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
-                              {hasEvent ? '✓' : '×'} 📅 Event Website Control
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className={hasInduction ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
-                              {hasInduction ? '✓' : '×'} 🎓 Induction Process Control
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 col-span-2">
-                            <span className={hasSettings ? 'text-emerald-700 font-bold' : 'text-slate-400 font-medium'}>
-                              {hasSettings ? '✓' : '×'} ⚙️ Platform Settings Control
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Team Assignment Section */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
-                      Assign to Teams (Optional)
-                    </label>
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      {formData.teamIds.length} selected
-                    </span>
-                  </div>
                   <p className="text-[11px] text-slate-500">
-                    Assigning a user to a team (e.g. Media Team) automatically grants them access to modules managed by that team.
+                    Each member can belong to only one team and inherits that team&apos;s roles.
                   </p>
-
-                  {availableTeams.length === 0 ? (
-                    <p className="text-xs text-slate-400 italic">No teams available. Create teams in the Teams tab.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                      {availableTeams.map((team) => {
-                        const isSelected = formData.teamIds.includes(team.id);
-                        return (
-                          <div
-                            key={team.id}
-                            onClick={() => toggleTeamSelection(team.id)}
-                            className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center gap-2 ${
-                              isSelected
-                                ? 'bg-blue-50/80 border-blue-200 text-slate-900 shadow-2xs'
-                                : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => {}}
-                              className="rounded border-slate-300 text-[#1E40AF] focus:ring-0 cursor-pointer pointer-events-none"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <span className="block font-bold text-xs truncate">{team.name}</span>
-                              {team.description && (
-                                <span className="block text-[10px] text-slate-400 truncate">{team.description}</span>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <select
+                    value={formData.teamId}
+                    onChange={(e) => setFormData({ ...formData, teamId: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-[#E2E8F0] bg-white text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#1E40AF]"
+                  >
+                    <option value="">No Team Assigned</option>
+                    {availableTeams.map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t border-[#E2E8F0]">
@@ -590,14 +739,39 @@ export default function UserRoleManagementPage() {
                     {modalLoading
                       ? 'Saving...'
                       : editingUser
-                      ? 'Save Changes'
-                      : 'Register User'}
+                        ? 'Save Changes'
+                        : 'Register User'}
                   </Button>
                 </div>
               </form>
+              </div>
             </div>
           </div>
         )}
+
+        <ConfirmModal
+          isOpen={Boolean(banConfirmUser)}
+          onClose={() => setBanConfirmUser(null)}
+          onConfirm={confirmToggleBan}
+          title={banConfirmUser?.banned ? 'Unban User' : 'Ban User'}
+          message={
+            banConfirmUser?.banned
+              ? `Restore access for "${banConfirmUser?.name || banConfirmUser?.email}"?`
+              : `Suspend "${banConfirmUser?.name || banConfirmUser?.email}" and revoke their active sessions?`
+          }
+          confirmText={banConfirmUser?.banned ? 'Unban User' : 'Ban User'}
+          variant={banConfirmUser?.banned ? 'primary' : 'danger'}
+        />
+
+        <ConfirmModal
+          isOpen={Boolean(deleteConfirmUser)}
+          onClose={() => setDeleteConfirmUser(null)}
+          onConfirm={confirmDeleteUser}
+          title="Delete User"
+          message={`Permanently delete "${deleteConfirmUser?.name || deleteConfirmUser?.email}"? This action cannot be undone.`}
+          confirmText="Delete User"
+          variant="danger"
+        />
       </div>
     </ProtectedRoute>
   );

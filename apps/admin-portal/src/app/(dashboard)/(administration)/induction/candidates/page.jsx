@@ -7,7 +7,9 @@ import { CandidateService } from '@/services/incubation/candidateService';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import CardWrapper from '@/components/Common/CardWrapper';
 import DataTable from '@/components/Common/DataTable';
+import Toast from '@/components/Common/Toast';
 import PageHeader from '@/components/common/PageHeader';
+import { ConfirmModal } from '@/components/ui';
 import {
   ClipboardCheck,
   Users,
@@ -35,7 +37,8 @@ export default function InductionPortalOverviewPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [creatingUserId, setCreatingUserId] = useState(null);
-  const [feedback, setFeedback] = useState({ type: '', text: '' });
+  const [toast, setToast] = useState(null);
+  const [createUserConfirmCand, setCreateUserConfirmCand] = useState(null);
   const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
@@ -72,20 +75,26 @@ export default function InductionPortalOverviewPage() {
     loadData();
   }, [loadData]);
 
-  const handleCreateUser = async (cand) => {
-    if (!window.confirm(`Create system User account for selected candidate "${cand.name}" (${cand.email})?`)) return;
+  const handleCreateUser = (cand) => {
+    setCreateUserConfirmCand(cand);
+  };
+
+  const confirmCreateUser = async () => {
+    const cand = createUserConfirmCand;
+    if (!cand) return;
+    setCreateUserConfirmCand(null);
 
     try {
       setCreatingUserId(cand.id);
       await apiClient.post(`/induction/applications/${cand.id}/create-user`, {});
-      setFeedback({
+      setToast({
         type: 'success',
-        text: `User account created successfully for ${cand.name}. They are now added to Team Members!`,
+        message: `User account created successfully for ${cand.name}. They are now added to Team Members!`,
       });
       await loadData();
     } catch (err) {
       const msg = err.message || err.error || 'Failed to create user account';
-      setFeedback({ type: 'error', text: typeof msg === 'string' ? msg : JSON.stringify(msg) });
+      setToast({ type: 'error', message: typeof msg === 'string' ? msg : JSON.stringify(msg) });
     } finally {
       setCreatingUserId(null);
     }
@@ -171,26 +180,32 @@ export default function InductionPortalOverviewPage() {
                 </span>
               ) : (
                 <button
+                  type="button"
                   onClick={() => handleCreateUser(cand)}
                   disabled={creatingUserId === cand.id}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-[#1E40AF] hover:bg-[#1E3A8A] text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
-                  title="Create system User account for this selected candidate"
+                  aria-label="Create User"
+                  className="group/btn relative inline-flex items-center justify-center w-7 h-7 rounded bg-[#1E40AF] hover:bg-[#1E3A8A] text-white shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
                 >
                   {creatingUserId === cand.id ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <UserPlus className="w-3 h-3" />
+                    <UserPlus className="w-3.5 h-3.5" />
                   )}
-                  <span>Create User</span>
+                  <span className="pointer-events-none absolute bottom-full mb-1.5 right-0 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover/btn:opacity-100 z-30">
+                    Create User
+                  </span>
                 </button>
               )
             )}
             <Link
               href={`/evaluation?candidateId=${cand.id}`}
-              className="inline-flex items-center gap-1 text-xs font-semibold text-[#1E40AF] hover:underline"
+              aria-label="Evaluate Candidate"
+              className="group/btn relative inline-flex items-center justify-center w-7 h-7 rounded border border-[#E2E8F0] bg-white text-[#1E40AF] hover:bg-blue-50 transition-colors"
             >
-              <span>Evaluate</span>
-              <ArrowRight className="w-3 h-3" />
+              <ClipboardCheck className="w-3.5 h-3.5" />
+              <span className="pointer-events-none absolute bottom-full mb-1.5 right-0 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover/btn:opacity-100 z-30">
+                Evaluate Candidate
+              </span>
             </Link>
           </div>
         );
@@ -201,6 +216,8 @@ export default function InductionPortalOverviewPage() {
   return (
     <ProtectedRoute requiredPermission={PERMISSIONS.INDUCTION_VIEW}>
       <div className="space-y-5 animate-in fade-in duration-200">
+        <Toast toast={toast} onClose={() => setToast(null)} />
+
         {/* Page Header */}
         <PageHeader
           icon={GraduationCap}
@@ -209,48 +226,30 @@ export default function InductionPortalOverviewPage() {
           actions={
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={loadData}
                 disabled={isLoading}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-[#E2E8F0] bg-white hover:bg-slate-50 font-semibold text-xs text-slate-700 transition-colors disabled:opacity-50"
+                aria-label="Refresh"
+                className="group relative inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#E2E8F0] bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 transition-colors cursor-pointer"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="pointer-events-none absolute -bottom-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 z-20">
+                  Refresh
+                </span>
               </button>
               <Link
                 href="/evaluation"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-[#1E40AF] hover:bg-[#1E3A8A] text-white font-semibold text-xs shadow-xs transition-colors"
+                aria-label="Evaluate Candidates"
+                className="group relative inline-flex items-center justify-center w-9 h-9 rounded-lg bg-[#1E40AF] hover:bg-[#1E3A8A] text-white shadow-xs transition-colors"
               >
                 <ClipboardCheck className="w-4 h-4" />
-                <span>Evaluate Candidates</span>
-              </Link>
-              <Link
-                href="/activity-log"
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-md border border-[#E2E8F0] bg-white hover:bg-slate-50 font-semibold text-xs text-slate-700 transition-colors"
-              >
-                <History className="w-4 h-4" />
-                <span>Activity Log</span>
+                <span className="pointer-events-none absolute -bottom-8 right-0 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-semibold text-white opacity-0 shadow-sm transition-opacity group-hover:opacity-100 z-20">
+                  Evaluate Candidates
+                </span>
               </Link>
             </div>
           }
         />
-
-        {feedback.text && (
-          <div
-            className={`p-3 rounded-md border text-xs flex items-center justify-between ${
-              feedback.type === 'error'
-                ? 'bg-red-50 border-red-200 text-red-700'
-                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-            }`}
-          >
-            <span>{feedback.text}</span>
-            <button
-              onClick={() => setFeedback({ type: '', text: '' })}
-              className="text-slate-400 hover:text-slate-600 font-bold ml-2"
-            >
-              ×
-            </button>
-          </div>
-        )}
 
         {/* Optional Error Banner */}
         {error && (
@@ -341,24 +340,17 @@ export default function InductionPortalOverviewPage() {
             }
           />
 
-        {feedback.text && (
-          <div
-            className={`p-3 rounded-md border text-xs flex items-center justify-between ${
-              feedback.type === 'error'
-                ? 'bg-red-50 border-red-200 text-red-700'
-                : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-            }`}
-          >
-            <span>{feedback.text}</span>
-            <button
-              onClick={() => setFeedback({ type: '', text: '' })}
-              className="text-slate-400 hover:text-slate-600 font-bold ml-2"
-            >
-              ×
-            </button>
-          </div>
-        )}
         </div>
+
+        <ConfirmModal
+          isOpen={Boolean(createUserConfirmCand)}
+          onClose={() => setCreateUserConfirmCand(null)}
+          onConfirm={confirmCreateUser}
+          title="Create User Account"
+          message={`Create system User account for selected candidate "${createUserConfirmCand?.name}" (${createUserConfirmCand?.email})?`}
+          confirmText="Create User"
+          variant="primary"
+        />
       </div>
     </ProtectedRoute>
   );
